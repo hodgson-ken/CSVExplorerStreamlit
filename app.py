@@ -1,10 +1,16 @@
-import streamlit as st
-import pandas as pd
+import os
 import re
 import io
-import os
 import hashlib
+import warnings
 from datetime import datetime
+
+# Suppress SQLAlchemy warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+# Third-party imports
+import streamlit as st
+import pandas as pd
 import sqlalchemy
 from sqlalchemy import create_engine, text, Column, Integer, String, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -215,9 +221,44 @@ def save_to_database(data):
             connection.execute(text("DELETE FROM users_data"))
             connection.commit()
         
+        # Create a copy of the data with lowercase column names to avoid SQL case issues
+        df_to_save = data.copy()
+        df_to_save.columns = [col.lower().replace(' ', '_') for col in df_to_save.columns]
+        
+        # Add any missing columns required by our schema
+        required_columns = ['first_name', 'last_name', 'email', 'user_role', 
+                           'accepted_site_invitation', 'description', 'org']
+        
+        for col in required_columns:
+            if col not in df_to_save.columns:
+                df_to_save[col] = None
+                
         # Convert DataFrame to records and insert into database
-        data.to_sql('users_data', engine, if_exists='append', index=False, 
-                   method='multi', chunksize=1000)
+        try:
+            df_to_save.to_sql('users_data', engine, if_exists='append', index=False, 
+                             method='multi', chunksize=100)
+        except Exception as sql_err:
+            # If the first method fails, try a more direct approach with explicit SQL
+            st.warning(f"Primary SQL insert failed: {sql_err}. Trying alternative method...")
+            
+            # Create a string of column names
+            columns = ", ".join(df_to_save.columns)
+            
+            # Insert rows one by one
+            with engine.connect() as connection:
+                for _, row in df_to_save.iterrows():
+                    values = []
+                    for val in row:
+                        if pd.isna(val):
+                            values.append('NULL')
+                        else:
+                            val_str = str(val).replace('"','').replace("'","''")
+                            values.append(f"'{val_str}'")
+                    values_str = ", ".join(values)
+                    
+                    insert_query = text(f"INSERT INTO users_data ({columns}) VALUES ({values_str})")
+                    connection.execute(insert_query)
+                connection.commit()
         
         return True
     except Exception as e:
@@ -227,11 +268,28 @@ def save_to_database(data):
 # Function to load data from database
 def load_from_database():
     try:
+        # Check if table exists first
+        with engine.connect() as connection:
+            check_query = text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users_data')")
+            result = connection.execute(check_query).fetchone()
+            
+            if not result[0]:
+                # Table doesn't exist yet
+                return False
+        
         # Query all data from the database
         query = text("SELECT * FROM users_data")
         df = pd.read_sql(query, engine)
         
         if not df.empty:
+            # Transform column names back to title case for consistency with CSV upload
+            # First, get a mapping of lowercase to original case from the database
+            df.columns = [col.title().replace('_', ' ') for col in df.columns]
+            
+            # Ensure 'Org' is properly cased (not 'org')
+            if 'Org' not in df.columns and 'org' in df.columns:
+                df = df.rename(columns={'org': 'Org'})
+            
             st.session_state.data = df
             st.session_state.upload_timestamp = "Loaded from database"
             st.session_state.db_data_loaded = True
