@@ -393,9 +393,13 @@ def send_email(recipient_email, subject, body, pdf_buffer, filename):
     try:
         # Get email credentials from environment variables
         email_host = os.environ.get('EMAIL_HOST')
-        email_port = os.environ.get('EMAIL_PORT')
+        # Temporarily override port to use 587 (TLS) instead of 465 (SSL)
+        email_port = "587"  # Force TLS port for testing
         email_username = os.environ.get('EMAIL_USERNAME')
         email_password = os.environ.get('EMAIL_PASSWORD')
+        
+        # Log port override
+        print(f"Using port {email_port} for email connection (TLS)")
         
         # Log to file
         with open(log_file, "a") as f:
