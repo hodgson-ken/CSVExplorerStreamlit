@@ -3,7 +3,12 @@ import re
 import io
 import hashlib
 import warnings
+import smtplib
+import tempfile
 from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 
 # Suppress SQLAlchemy warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -263,9 +268,11 @@ def generate_pdf(data, org_name="All"):
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('TOPPADDING', (0, 0), (-1, -1), 4),  # Reduced top padding
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),  # Reduced bottom padding
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 6),  # Header row needs a bit more padding
+                    ('FONTSIZE', (0, 0), (-1, 0), 9),  # Font size for header row
+                    ('FONTSIZE', (0, 1), (-1, -1), 7),  # Font size for data rows
+                    ('TOPPADDING', (0, 0), (-1, -1), 1),  # Reduced top padding
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 1),  # Reduced bottom padding
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 4),  # Header row needs a bit more padding
                     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ])
@@ -301,9 +308,9 @@ def generate_pdf(data, org_name="All"):
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),  # Reduced top padding
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),  # Reduced bottom padding
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),  # Header row needs a bit more padding
+                ('TOPPADDING', (0, 0), (-1, -1), 1),  # Reduced top padding
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 1),  # Reduced bottom padding
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 4),  # Header row needs a bit more padding
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ])
@@ -324,6 +331,41 @@ def generate_pdf(data, org_name="All"):
     doc.build(elements)
     buffer.seek(0)
     return buffer
+
+# Function to send email with PDF attachment
+def send_email(recipient_email, subject, body, pdf_buffer, filename):
+    """Send email with PDF attachment"""
+    try:
+        # Get email credentials from environment variables
+        email_host = os.environ.get('EMAIL_HOST')
+        email_port = os.environ.get('EMAIL_PORT')
+        email_username = os.environ.get('EMAIL_USERNAME')
+        email_password = os.environ.get('EMAIL_PASSWORD')
+        
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = email_username
+        msg['To'] = recipient_email
+        msg['Subject'] = subject
+        
+        # Attach message body
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Attach PDF
+        pdf_buffer.seek(0)
+        pdf_attachment = MIMEApplication(pdf_buffer.read())
+        pdf_attachment.add_header('Content-Disposition', f'attachment; filename="{filename}"')
+        msg.attach(pdf_attachment)
+        
+        # Send email
+        with smtplib.SMTP(email_host, int(email_port)) as server:
+            server.starttls()
+            server.login(email_username, email_password)
+            server.send_message(msg)
+        
+        return True, "Email sent successfully"
+    except Exception as e:
+        return False, f"Error sending email: {str(e)}"
 
 # Function to generate a PDF report of organization distribution
 def generate_org_distribution_pdf(data):
