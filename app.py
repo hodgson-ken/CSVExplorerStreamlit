@@ -208,9 +208,11 @@ def generate_pdf(data, org_name="All"):
     pdf_data = data.copy()
     pdf_data = pdf_data.sort_values(by=['Description'])
     
-    # Rename 'Accepted site invitation' to 'Has Used' if it exists
-    if 'Accepted site invitation' in pdf_data.columns:
-        pdf_data = pdf_data.rename(columns={'Accepted site invitation': 'Has Used'})
+    # Rename any variation of 'Accepted site invitation' to 'Has Used'
+    for col in pdf_data.columns:
+        if 'accepted' in col.lower() and 'invitation' in col.lower():
+            pdf_data = pdf_data.rename(columns={col: 'Has Used'})
+            break
     
     # Prepare data for the table
     cols_to_display = ['Org', 'First name', 'Last name', 'Email', 'Description', 'Has Used']
@@ -363,12 +365,15 @@ def load_from_database():
         
         if not df.empty:
             # Transform column names back to title case for consistency with CSV upload
-            # First, get a mapping of lowercase to original case from the database
             df.columns = [col.title().replace('_', ' ') for col in df.columns]
             
             # Ensure 'Org' is properly cased (not 'org')
             if 'Org' not in df.columns and 'org' in df.columns:
                 df = df.rename(columns={'org': 'Org'})
+            
+            # Consistently rename 'Accepted Site Invitation' to 'Has Used'
+            if 'Accepted Site Invitation' in df.columns:
+                df = df.rename(columns={'Accepted Site Invitation': 'Has Used'})
             
             st.session_state.data = df
             st.session_state.upload_timestamp = "Loaded from database"
@@ -456,9 +461,11 @@ def display_data(data, selected_org):
     # Display record count
     st.write(f"**Showing {record_count} records**")
     
-    # Rename 'Accepted site invitation' to 'Has Used' if it exists
-    if 'Accepted site invitation' in display_df.columns:
-        display_df = display_df.rename(columns={'Accepted site invitation': 'Has Used'})
+    # Rename any variation of 'Accepted site invitation' to 'Has Used'
+    for col in display_df.columns:
+        if 'accepted' in col.lower() and 'invitation' in col.lower():
+            display_df = display_df.rename(columns={col: 'Has Used'})
+            break
     
     # Select relevant columns similar to SQL query
     cols_to_display = ['Org', 'First name', 'Last name', 'Email', 'Description', 'Has Used']
@@ -550,9 +557,11 @@ if login():
                 # Sort by Description
                 csv_data = csv_data.sort_values(by=['Description'])
                 
-                # Rename column for consistency
-                if 'Accepted site invitation' in csv_data.columns:
-                    csv_data = csv_data.rename(columns={'Accepted site invitation': 'Has Used'})
+                # Rename any variation of 'Accepted site invitation' to 'Has Used'
+                for col in csv_data.columns:
+                    if 'accepted' in col.lower() and 'invitation' in col.lower():
+                        csv_data = csv_data.rename(columns={col: 'Has Used'})
+                        break
                 
                 csv = csv_data.to_csv(index=False)
                 st.download_button(
@@ -580,15 +589,22 @@ if login():
             st.dataframe(org_counts)
             
             # Calculate percentage of accepted invitations
-            if 'Accepted site invitation' in st.session_state.data.columns:
-                accepted_count = st.session_state.data['Accepted site invitation'].value_counts().get('Yes', 0)
+            usage_column = None
+            # Find the 'Accepted site invitation' column with any casing/formatting
+            for col in st.session_state.data.columns:
+                if 'accepted' in col.lower() and 'invitation' in col.lower():
+                    usage_column = col
+                    break
+            
+            if usage_column:
+                accepted_count = st.session_state.data[usage_column].value_counts().get('Yes', 0)
                 total_count = len(st.session_state.data)
                 acceptance_rate = (accepted_count / total_count) * 100 if total_count > 0 else 0
                 st.write(f"### User Activation Rate: {acceptance_rate:.2f}%")
                 
                 # Show usage breakdown (Yes/No/None)
                 st.write("### Has Used Breakdown")
-                usage_counts = st.session_state.data['Accepted site invitation'].value_counts().reset_index()
+                usage_counts = st.session_state.data[usage_column].value_counts().reset_index()
                 usage_counts.columns = ['Status', 'Count']
                 st.dataframe(usage_counts)
     else:
