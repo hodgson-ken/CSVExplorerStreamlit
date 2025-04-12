@@ -342,6 +342,15 @@ def send_email(recipient_email, subject, body, pdf_buffer, filename):
         email_username = os.environ.get('EMAIL_USERNAME')
         email_password = os.environ.get('EMAIL_PASSWORD')
         
+        # Check if credentials are available
+        if not all([email_host, email_port, email_username, email_password]):
+            missing = []
+            if not email_host: missing.append("EMAIL_HOST")
+            if not email_port: missing.append("EMAIL_PORT")
+            if not email_username: missing.append("EMAIL_USERNAME")
+            if not email_password: missing.append("EMAIL_PASSWORD")
+            return False, f"Missing email credentials: {', '.join(missing)}"
+        
         # Create message
         msg = MIMEMultipart()
         msg['From'] = email_username
@@ -824,6 +833,88 @@ if login():
                     file_name=f"user_data_report_{selected_org}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
                     mime="application/pdf"
                 )
+        
+        # Email report section
+        if not filtered_data.empty and 'Email' in filtered_data.columns and 'Description' in filtered_data.columns:
+            st.header("Email Reports")
+            
+            # Get unique descriptions from the filtered data
+            descriptions = filtered_data['Description'].unique().tolist()
+            descriptions.sort()
+            
+            # Allow user to select multiple descriptions to email
+            selected_descriptions = st.multiselect(
+                "Select contacts to email (by Description):",
+                options=descriptions
+            )
+            
+            # Extract email addresses for selected descriptions
+            if selected_descriptions:
+                # Get the rows that match the selected descriptions
+                recipient_data = filtered_data[filtered_data['Description'].isin(selected_descriptions)]
+                
+                # Extract the email addresses
+                recipient_emails = recipient_data['Email'].tolist()
+                
+                # Filter out null or empty emails
+                recipient_emails = [email for email in recipient_emails if email and not pd.isna(email)]
+                
+                if recipient_emails:
+                    st.write(f"Found {len(recipient_emails)} email(s) for the selected contact(s).")
+                    
+                    # Email form
+                    with st.form("email_form"):
+                        email_subject = st.text_input("Email Subject:", 
+                            value=f"User Data Report - {selected_org} Organization")
+                        
+                        email_body = st.text_area("Email Body:", 
+                            value=f"Please find attached the user data report for {selected_org} organization.")
+                        
+                        send_button = st.form_submit_button("Send Report")
+                        
+                        if send_button:
+                            # Create PDF buffer for each recipient
+                            pdf_buffer = generate_pdf(filtered_data, selected_org)
+                            
+                            # Progress indicator
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+                            
+                            # Send emails
+                            success_count = 0
+                            error_messages = []
+                            
+                            for i, email in enumerate(recipient_emails):
+                                status_text.text(f"Sending email to {email}...")
+                                progress_value = (i / len(recipient_emails))
+                                progress_bar.progress(progress_value)
+                                
+                                # Send email with PDF attachment
+                                success, message = send_email(
+                                    recipient_email=email,
+                                    subject=email_subject,
+                                    body=email_body,
+                                    pdf_buffer=pdf_buffer,
+                                    filename=f"user_data_report_{selected_org}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                                )
+                                
+                                if success:
+                                    success_count += 1
+                                else:
+                                    error_messages.append(f"Failed to send to {email}: {message}")
+                            
+                            # Final progress
+                            progress_bar.progress(1.0)
+                            
+                            # Show results
+                            if success_count == len(recipient_emails):
+                                st.success(f"Successfully sent {success_count} email(s)!")
+                            else:
+                                st.warning(f"Sent {success_count} of {len(recipient_emails)} email(s).")
+                                for error in error_messages:
+                                    st.error(error)
+                else:
+                    st.warning("No valid email addresses found for the selected contacts.")
         
         # Display data statistics
         with st.expander("Data Statistics"):
