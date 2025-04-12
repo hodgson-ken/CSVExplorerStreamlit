@@ -143,46 +143,23 @@ def login():
     
     st.title("CSV Data Explorer - Login")
     
-    tab1, tab2 = st.tabs(["Login", "Change Password"])
-    
-    with tab1:
-        with st.form("login_form"):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
-            submit = st.form_submit_button("Login")
-            
-            if submit:
-                success, user_id, user_name, is_admin = verify_user(username, password)
-                if success:
-                    st.session_state.authenticated = True
-                    st.session_state.username = user_name
-                    st.session_state.is_admin = is_admin
-                    st.success("Login successful!")
-                    st.rerun()
-                else:
-                    st.error("Invalid username or password")
+    with st.form("login_form"):
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        submit = st.form_submit_button("Login")
         
-        st.markdown("Default credentials: admin/admin")
+        if submit:
+            success, user_id, user_name, is_admin = verify_user(username, password)
+            if success:
+                st.session_state.authenticated = True
+                st.session_state.username = user_name
+                st.session_state.is_admin = is_admin
+                st.success("Login successful!")
+                st.rerun()
+            else:
+                st.error("Invalid username or password")
     
-    with tab2:
-        with st.form("change_password_form"):
-            cp_username = st.text_input("Username", key="cp_username")
-            cp_current = st.text_input("Current Password", type="password")
-            cp_new = st.text_input("New Password", type="password")
-            cp_confirm = st.text_input("Confirm New Password", type="password")
-            cp_submit = st.form_submit_button("Change Password")
-            
-            if cp_submit:
-                if cp_new != cp_confirm:
-                    st.error("New passwords do not match")
-                elif len(cp_new) < 4:
-                    st.error("New password must be at least 4 characters long")
-                else:
-                    success, message = change_password(cp_username, cp_current, cp_new)
-                    if success:
-                        st.success(message)
-                    else:
-                        st.error(message)
+    st.markdown("Default credentials: admin/admin")
     
     return False
 
@@ -496,7 +473,30 @@ if login():
     # User is authenticated, show the main app
     st.title(f"CSV Data Explorer - Welcome {st.session_state.username}")
     
-    # Show logout button in sidebar
+    # Show user profile options in sidebar
+    st.sidebar.header("User Profile")
+    
+    # Password change form in sidebar
+    with st.sidebar.expander("Change Password"):
+        with st.form("change_password_form"):
+            cp_current = st.text_input("Current Password", type="password")
+            cp_new = st.text_input("New Password", type="password")
+            cp_confirm = st.text_input("Confirm New Password", type="password")
+            cp_submit = st.form_submit_button("Change Password")
+            
+            if cp_submit:
+                if cp_new != cp_confirm:
+                    st.error("New passwords do not match")
+                elif len(cp_new) < 4:
+                    st.error("New password must be at least 4 characters long")
+                else:
+                    success, message = change_password(st.session_state.username, cp_current, cp_new)
+                    if success:
+                        st.success(message)
+                    else:
+                        st.error(message)
+    
+    # Logout button
     if st.sidebar.button("Logout"):
         st.session_state.authenticated = False
         st.session_state.username = None
