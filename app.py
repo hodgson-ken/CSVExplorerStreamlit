@@ -262,20 +262,21 @@ def generate_pdf(data, org_name="All"):
                 # Create table with specific column widths
                 table = Table(table_data, colWidths=col_widths)
                 
-                # Add style with smaller font and reduced padding
+                # Add style with extremely compact row heights
                 style = TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 8),  # Reduced header font size
-                    ('FONTSIZE', (0, 1), (-1, -1), 7),  # Reduced data font size
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
-                    ('TOPPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
-                    ('LEFTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
+                    ('FONTSIZE', (0, 0), (-1, 0), 7),  # Smaller header font
+                    ('FONTSIZE', (0, 1), (-1, -1), 6),  # Smaller data font
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 1),  # Minimal bottom padding
+                    ('TOPPADDING', (0, 0), (-1, -1), 1),  # Minimal top padding
+                    ('LEFTPADDING', (0, 0), (-1, -1), 4),  # Keep some horizontal spacing
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),  # Keep some horizontal spacing
                     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                    ('GRID', (0, 0), (-1, -1), 0.5, colors.black),  # Thinner grid lines
+                    ('GRID', (0, 0), (-1, -1), 0.25, colors.black),  # Very thin grid lines
+                    ('LEADING', (0, 0), (-1, -1), 6),  # Very tight line spacing
                     ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')  # Vertical alignment
                 ])
                 
@@ -309,20 +310,21 @@ def generate_pdf(data, org_name="All"):
             # Create table with specific column widths
             table = Table(table_data, colWidths=col_widths)
             
-            # Add style with smaller font and reduced padding
+            # Add style with extremely compact row heights
             style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 8),  # Reduced header font size
-                ('FONTSIZE', (0, 1), (-1, -1), 7),  # Reduced data font size
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
-                ('TOPPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
-                ('LEFTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
-                ('RIGHTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
+                ('FONTSIZE', (0, 0), (-1, 0), 7),  # Smaller header font
+                ('FONTSIZE', (0, 1), (-1, -1), 6),  # Smaller data font
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 1),  # Minimal bottom padding
+                ('TOPPADDING', (0, 0), (-1, -1), 1),  # Minimal top padding
+                ('LEFTPADDING', (0, 0), (-1, -1), 4),  # Keep some horizontal spacing
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4),  # Keep some horizontal spacing
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),  # Thinner grid lines
+                ('GRID', (0, 0), (-1, -1), 0.25, colors.black),  # Very thin grid lines
+                ('LEADING', (0, 0), (-1, -1), 6),  # Very tight line spacing
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')  # Vertical alignment
             ])
             
