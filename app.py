@@ -189,8 +189,10 @@ def determine_org(row):
 def generate_pdf(data, org_name="All"):
     buffer = io.BytesIO()
     
-    # Create the PDF document
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    # Create the PDF document with minimal margins to maximize table width
+    doc = SimpleDocTemplate(buffer, pagesize=letter,
+                          leftMargin=20, rightMargin=20,
+                          topMargin=30, bottomMargin=30)
     elements = []
     
     # Helper function to add header to each page
@@ -341,8 +343,10 @@ def generate_pdf(data, org_name="All"):
 def generate_org_distribution_pdf(data):
     buffer = io.BytesIO()
     
-    # Create the PDF document
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    # Create the PDF document with minimal margins to maximize table width
+    doc = SimpleDocTemplate(buffer, pagesize=letter,
+                          leftMargin=20, rightMargin=20,
+                          topMargin=30, bottomMargin=30)
     elements = []
     
     # Add a title
@@ -387,15 +391,20 @@ def generate_org_distribution_pdf(data):
     if len(summary_table_data) > 1:
         summary_table = Table(summary_table_data)
         
-        # Add style
+        # Add style with matching font size and minimal padding
         style = TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),  # Header font size
+            ('FONTSIZE', (0, 1), (-1, -1), 8),  # Data font size
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1),  # Minimal padding
+            ('TOPPADDING', (0, 0), (-1, -1), 1),  # Minimal padding
+            ('LEFTPADDING', (0, 0), (-1, -1), 2),  # Minimal horizontal spacing
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2),  # Minimal horizontal spacing
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('GRID', (0, 0), (-1, -1), 0.25, colors.black)  # Thin grid lines
         ])
         
         # Add zebra striping for readability
@@ -439,15 +448,20 @@ def generate_org_distribution_pdf(data):
         if len(usage_table_data) > 1:
             usage_table = Table(usage_table_data)
             
-            # Add style
+            # Add style with matching font size and minimal padding
             usage_style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.lightgreen),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.darkblue),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('FONTSIZE', (0, 0), (-1, 0), 8),  # Header font size
+                ('FONTSIZE', (0, 1), (-1, -1), 8),  # Data font size
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 1),  # Minimal padding
+                ('TOPPADDING', (0, 0), (-1, -1), 1),  # Minimal padding
+                ('LEFTPADDING', (0, 0), (-1, -1), 2),  # Minimal horizontal spacing
+                ('RIGHTPADDING', (0, 0), (-1, -1), 2),  # Minimal horizontal spacing
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ('GRID', (0, 0), (-1, -1), 0.25, colors.black)  # Thin grid lines
             ])
             
             # Add zebra striping for readability
