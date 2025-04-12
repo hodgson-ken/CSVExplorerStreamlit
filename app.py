@@ -263,7 +263,9 @@ def generate_pdf(data, org_name="All"):
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('TOPPADDING', (0, 0), (-1, -1), 4),  # Reduced top padding
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),  # Reduced bottom padding
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 6),  # Header row needs a bit more padding
                     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ])
@@ -299,7 +301,9 @@ def generate_pdf(data, org_name="All"):
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),  # Reduced top padding
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),  # Reduced bottom padding
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),  # Header row needs a bit more padding
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ])
@@ -377,7 +381,9 @@ def generate_org_distribution_pdf(data):
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),  # Reduced top padding
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),  # Reduced bottom padding
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),  # Header row needs a bit more padding
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ])
@@ -429,7 +435,9 @@ def generate_org_distribution_pdf(data):
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.darkblue),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),  # Reduced top padding
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),  # Reduced bottom padding
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),  # Header row needs a bit more padding
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ])
