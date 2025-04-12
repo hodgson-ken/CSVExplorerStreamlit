@@ -398,6 +398,9 @@ def send_email(recipient_email, subject, body, pdf_buffer, filename):
             if not email_password: missing.append("EMAIL_PASSWORD")
             return False, f"Missing email credentials: {', '.join(missing)}"
         
+        # Log connection details (without password)
+        print(f"Attempting to connect to email server: {email_host}:{email_port} with username: {email_username}")
+        
         # Create message
         msg = MIMEMultipart()
         msg['From'] = email_username
@@ -413,15 +416,45 @@ def send_email(recipient_email, subject, body, pdf_buffer, filename):
         pdf_attachment.add_header('Content-Disposition', f'attachment; filename="{filename}"')
         msg.attach(pdf_attachment)
         
-        # Send email
-        with smtplib.SMTP(email_host, int(email_port)) as server:
-            server.starttls()
-            server.login(email_username, email_password)
-            server.send_message(msg)
-        
-        return True, "Email sent successfully"
+        # Send email with more detailed error handling
+        try:
+            # Create server connection
+            server = smtplib.SMTP(email_host, int(email_port), timeout=10)
+            
+            # Start TLS
+            try:
+                server.starttls()
+            except Exception as tls_error:
+                return False, f"TLS error: {str(tls_error)}"
+            
+            # Login to server
+            try:
+                server.login(email_username, email_password)
+            except smtplib.SMTPAuthenticationError as auth_error:
+                return False, f"Authentication failed: {str(auth_error)}"
+            
+            # Send message
+            try:
+                server.send_message(msg)
+            except Exception as send_error:
+                return False, f"Error sending message: {str(send_error)}"
+            
+            # Close connection
+            try:
+                server.quit()
+            except Exception:
+                pass  # If quit fails, we already sent the email so it's okay
+                
+            return True, "Email sent successfully"
+        except smtplib.SMTPConnectError as conn_error:
+            return False, f"Connection error: {str(conn_error)}"
+        except TimeoutError:
+            return False, f"Connection timed out while connecting to {email_host}:{email_port}"
+        except Exception as smtp_error:
+            return False, f"SMTP error: {str(smtp_error)}"
+            
     except Exception as e:
-        return False, f"Error sending email: {str(e)}"
+        return False, f"Error preparing email: {str(e)}"
 
 # Function to generate a PDF report of organization distribution
 def generate_org_distribution_pdf(data):
@@ -857,6 +890,75 @@ if login():
         
         # Display filtered data
         display_data(st.session_state.data, selected_org)
+        
+        # Add Email test section for administrators
+        if st.session_state.is_admin:
+            with st.expander("Email Configuration Test"):
+                st.write("This section allows administrators to test the email configuration.")
+                
+                email_host = os.environ.get('EMAIL_HOST', '')
+                email_port = os.environ.get('EMAIL_PORT', '')
+                email_username = os.environ.get('EMAIL_USERNAME', '')
+                email_password_exists = "Yes" if os.environ.get('EMAIL_PASSWORD') else "No"
+                
+                st.write("### Current Email Configuration:")
+                st.write(f"- **SMTP Host:** {email_host}")
+                st.write(f"- **SMTP Port:** {email_port}")
+                st.write(f"- **Username:** {email_username}")
+                st.write(f"- **Password Set:** {email_password_exists}")
+                
+                with st.form("email_test_form"):
+                    test_recipient = st.text_input("Test Email Recipient", 
+                                                 value=st.session_state.user_email if st.session_state.user_email else "")
+                    send_test = st.form_submit_button("Send Test Email")
+                    
+                    if send_test:
+                        if not test_recipient or "@" not in test_recipient:
+                            st.error("Please enter a valid email address")
+                        else:
+                            # Create a simple test email
+                            try:
+                                # Create message
+                                msg = MIMEMultipart()
+                                msg['From'] = email_username
+                                msg['To'] = test_recipient
+                                msg['Subject'] = "CSV Data Explorer - Email Test"
+                                
+                                # Attach message body
+                                body = "This is a test email from the CSV Data Explorer application."
+                                msg.attach(MIMEText(body, 'plain'))
+                                
+                                # Log connection attempt
+                                st.write(f"Attempting to connect to {email_host}:{email_port}...")
+                                
+                                # Create server connection with explicit timeout
+                                st.write("Creating SMTP connection...")
+                                server = smtplib.SMTP(email_host, int(email_port), timeout=10)
+                                
+                                # Start TLS
+                                st.write("Starting TLS encryption...")
+                                server.starttls()
+                                
+                                # Login
+                                st.write("Authenticating with server...")
+                                server.login(email_username, os.environ.get('EMAIL_PASSWORD', ''))
+                                
+                                # Send message
+                                st.write("Sending message...")
+                                server.send_message(msg)
+                                
+                                # Close connection
+                                st.write("Closing connection...")
+                                server.quit()
+                                
+                                st.success("Test email sent successfully!")
+                            except Exception as e:
+                                st.error(f"Error sending test email: {str(e)}")
+                                st.write("### Troubleshooting Tips:")
+                                st.write("1. Check that your email credentials are correct")
+                                st.write("2. Ensure the SMTP port isn't blocked by a firewall")
+                                st.write("3. For Gmail, enable 'Less secure app access' or use an App Password")
+                                st.write("4. Try a different email provider or port number")
         
         # Create export section with buttons side by side
         col1, col2 = st.columns(2)
