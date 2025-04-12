@@ -102,6 +102,40 @@ def verify_user(username, password):
         st.error(f"Authentication error: {str(e)}")
         return False, None, None, None
     
+def change_password(username, current_password, new_password):
+    """Change a user's password"""
+    try:
+        # First, verify the current password
+        with engine.connect() as connection:
+            # Hash the current password
+            hashed_current = hashlib.sha256(current_password.encode()).hexdigest()
+            
+            # Verify current password
+            verify_query = text("""
+            SELECT id FROM users 
+            WHERE username = :username AND password = :password
+            """)
+            result = connection.execute(verify_query, {"username": username, "password": hashed_current}).fetchone()
+            
+            if not result:
+                return False, "Current password is incorrect"
+            
+            # Hash the new password
+            hashed_new = hashlib.sha256(new_password.encode()).hexdigest()
+            
+            # Update the password
+            update_query = text("""
+            UPDATE users 
+            SET password = :password 
+            WHERE username = :username
+            """)
+            connection.execute(update_query, {"username": username, "password": hashed_new})
+            connection.commit()
+            
+            return True, "Password updated successfully"
+    except Exception as e:
+        return False, f"Error changing password: {str(e)}"
+
 def login():
     """Handle user login"""
     if st.session_state.authenticated:
@@ -109,23 +143,47 @@ def login():
     
     st.title("CSV Data Explorer - Login")
     
-    with st.form("login_form"):
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        submit = st.form_submit_button("Login")
-        
-        if submit:
-            success, user_id, user_name, is_admin = verify_user(username, password)
-            if success:
-                st.session_state.authenticated = True
-                st.session_state.username = user_name
-                st.session_state.is_admin = is_admin
-                st.success("Login successful!")
-                st.rerun()
-            else:
-                st.error("Invalid username or password")
+    tab1, tab2 = st.tabs(["Login", "Change Password"])
     
-    st.markdown("Default credentials: admin/admin")
+    with tab1:
+        with st.form("login_form"):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            submit = st.form_submit_button("Login")
+            
+            if submit:
+                success, user_id, user_name, is_admin = verify_user(username, password)
+                if success:
+                    st.session_state.authenticated = True
+                    st.session_state.username = user_name
+                    st.session_state.is_admin = is_admin
+                    st.success("Login successful!")
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password")
+        
+        st.markdown("Default credentials: admin/admin")
+    
+    with tab2:
+        with st.form("change_password_form"):
+            cp_username = st.text_input("Username", key="cp_username")
+            cp_current = st.text_input("Current Password", type="password")
+            cp_new = st.text_input("New Password", type="password")
+            cp_confirm = st.text_input("Confirm New Password", type="password")
+            cp_submit = st.form_submit_button("Change Password")
+            
+            if cp_submit:
+                if cp_new != cp_confirm:
+                    st.error("New passwords do not match")
+                elif len(cp_new) < 4:
+                    st.error("New password must be at least 4 characters long")
+                else:
+                    success, message = change_password(cp_username, cp_current, cp_new)
+                    if success:
+                        st.success(message)
+                    else:
+                        st.error(message)
+    
     return False
 
 # Ensure admin user exists
@@ -486,7 +544,17 @@ if login():
         # Create a download button for the filtered data as CSV
         if not filtered_data.empty:
             with col1:
-                csv = filtered_data.to_csv(index=False)
+                # Create a copy for CSV with the same formatting as PDF
+                csv_data = filtered_data.copy()
+                
+                # Sort by Description
+                csv_data = csv_data.sort_values(by=['Description'])
+                
+                # Rename column for consistency
+                if 'Accepted site invitation' in csv_data.columns:
+                    csv_data = csv_data.rename(columns={'Accepted site invitation': 'Has Used'})
+                
+                csv = csv_data.to_csv(index=False)
                 st.download_button(
                     label="Download as CSV",
                     data=csv,
