@@ -189,13 +189,11 @@ def determine_org(row):
 def generate_pdf(data, org_name="All"):
     buffer = io.BytesIO()
     
-    # Create the PDF document with reduced margins
-    doc = SimpleDocTemplate(buffer, pagesize=letter, 
-                           leftMargin=36, rightMargin=36, 
-                           topMargin=36, bottomMargin=18)
+    # Create the PDF document
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
     elements = []
     
-    # Helper function to add compact headers to each page
+    # Helper function to add header to each page
     def add_headers(elements, styles, org_title=None):
         # Add a title
         if org_title:
@@ -203,17 +201,13 @@ def generate_pdf(data, org_name="All"):
         else:
             title_text = f"User Data Report - {org_name} Organization" if org_name != "All" else "User Data Report - All Organizations"
         
-        # Use a more compact title style
-        compact_title_style = styles["Heading2"]
-        title = Paragraph(title_text, compact_title_style)
+        title = Paragraph(title_text, styles["Heading1"])
         elements.append(title)
         
-        # Add timestamp - small and right-aligned
-        timestamp_style = styles["Normal"]
-        timestamp_style.alignment = 2  # Right aligned
-        timestamp_style.fontSize = 8  # Smaller font
-        timestamp = Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", timestamp_style)
+        # Add timestamp
+        timestamp = Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles["Normal"])
         elements.append(timestamp)
+        elements.append(Paragraph("<br/>", styles["Normal"]))  # Add some space
         
         return elements
     
@@ -248,9 +242,8 @@ def generate_pdf(data, org_name="All"):
                 elements.append(PageBreak())
                 elements = add_headers(elements, styles, org)
             else:
-                # Add organization header for the first organization - more compact
-                org_header_style = styles["Heading3"]
-                elements.append(Paragraph(f"Organization: {org}", org_header_style))
+                # Add organization header for the first organization
+                elements.append(Paragraph(f"Organization: {org}", styles["Heading2"]))
             
             # Create table data with header
             table_data = [existing_cols]  # Header row
@@ -260,28 +253,19 @@ def generate_pdf(data, org_name="All"):
                 table_row = [str(row[col]) if not pd.isna(row[col]) else "" for col in existing_cols]
                 table_data.append(table_row)
             
-            # Create the table with a more compact layout
+            # Create the table
             if len(table_data) > 1:  # Only create table if there are rows
-                # Calculate appropriate column widths - make sure the Description column gets more space
-                col_widths = [60, 65, 65, 110, 160, 50]  # Customize as needed
-                # Trim to match existing columns
-                col_widths = col_widths[:len(existing_cols)]
+                table = Table(table_data)
                 
-                table = Table(table_data, colWidths=col_widths)
-                
-                # Add style with reduced padding
+                # Add style
                 style = TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 8),  # Smaller font size
-                    ('TOPPADDING', (0, 0), (-1, -1), 1),  # Reduced padding
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 1),  # Reduced padding
-                    ('LEFTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                    ('GRID', (0, 0), (-1, -1), 0.5, colors.black)  # Thinner grid lines
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ])
                 
                 # Add zebra striping for readability
@@ -292,11 +276,9 @@ def generate_pdf(data, org_name="All"):
                 table.setStyle(style)
                 elements.append(table)
             
-            # Add record count for this organization - more compact
+            # Add record count for this organization
             org_record_count = len(org_data)
-            count_style = styles["Normal"]
-            count_style.fontSize = 8
-            elements.append(Paragraph(f"Records: {org_record_count}", count_style))
+            elements.append(Paragraph(f"<br/>Records: {org_record_count}", styles["Normal"]))
     else:
         # Single organization case - just create one table
         # Create table data with header
@@ -307,28 +289,19 @@ def generate_pdf(data, org_name="All"):
             table_row = [str(row[col]) if not pd.isna(row[col]) else "" for col in existing_cols]
             table_data.append(table_row)
         
-        # Create the table with a more compact layout
+        # Create the table
         if len(table_data) > 1:  # Only create table if there are rows
-            # Calculate appropriate column widths - make sure the Description column gets more space
-            col_widths = [60, 65, 65, 110, 160, 50]  # Customize as needed
-            # Trim to match existing columns
-            col_widths = col_widths[:len(existing_cols)]
+            table = Table(table_data)
             
-            table = Table(table_data, colWidths=col_widths)
-            
-            # Add style with reduced padding
+            # Add style
             style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 8),  # Smaller font size
-                ('TOPPADDING', (0, 0), (-1, -1), 1),  # Reduced padding
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 1),  # Reduced padding
-                ('LEFTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
-                ('RIGHTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.black)  # Thinner grid lines
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ])
             
             # Add zebra striping for readability
@@ -339,11 +312,9 @@ def generate_pdf(data, org_name="All"):
             table.setStyle(style)
             elements.append(table)
     
-    # Add total record count - more compact
+    # Add total record count
     record_count = len(data)
-    count_style = styles["Normal"]
-    count_style.fontSize = 8
-    elements.append(Paragraph(f"Total Records: {record_count}", count_style))
+    elements.append(Paragraph(f"<br/>Total Records: {record_count}", styles["Normal"]))
     
     # Build PDF
     doc.build(elements)
@@ -354,24 +325,20 @@ def generate_pdf(data, org_name="All"):
 def generate_org_distribution_pdf(data):
     buffer = io.BytesIO()
     
-    # Create the PDF document with reduced margins
-    doc = SimpleDocTemplate(buffer, pagesize=letter,
-                           leftMargin=36, rightMargin=36,
-                           topMargin=36, bottomMargin=18)
+    # Create the PDF document
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
     elements = []
     
-    # Add a title - more compact
+    # Add a title
     styles = getSampleStyleSheet()
     title_text = "Organization Distribution Report"
-    title = Paragraph(title_text, styles["Heading2"])
+    title = Paragraph(title_text, styles["Heading1"])
     elements.append(title)
     
-    # Add timestamp - smaller and right-aligned
-    timestamp_style = styles["Normal"]
-    timestamp_style.alignment = 2  # Right aligned
-    timestamp_style.fontSize = 8  # Smaller font
-    timestamp = Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", timestamp_style)
+    # Add timestamp
+    timestamp = Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles["Normal"])
     elements.append(timestamp)
+    elements.append(Paragraph("<br/>", styles["Normal"]))  # Add some space
     
     # Get organization distribution
     org_counts = data['Org'].value_counts().reset_index()
@@ -382,7 +349,8 @@ def generate_org_distribution_pdf(data):
     total_users = len(data)
     
     # Add Organization Distribution table
-    elements.append(Paragraph("Organization Distribution", styles["Heading3"]))
+    elements.append(Paragraph("Organization Distribution", styles["Heading2"]))
+    elements.append(Paragraph("<br/>", styles["Normal"]))
     
     # Create table data with header
     summary_table_data = [['Organization', 'Count', 'Percentage']]  # Header row
@@ -399,26 +367,19 @@ def generate_org_distribution_pdf(data):
             f"{percentage:.2f}%"
         ])
     
-    # Create the summary table with compact styling
+    # Create the summary table
     if len(summary_table_data) > 1:
-        # Set appropriate column widths
-        col_widths = [200, 50, 80]
+        summary_table = Table(summary_table_data)
         
-        summary_table = Table(summary_table_data, colWidths=col_widths)
-        
-        # Add compact style
+        # Add style
         style = TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),  # Smaller font size
-            ('TOPPADDING', (0, 0), (-1, -1), 2),  # Reduced padding
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),  # Reduced padding
-            ('LEFTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
-            ('RIGHTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.black)  # Thinner grid lines
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ])
         
         # Add zebra striping for readability
@@ -437,8 +398,8 @@ def generate_org_distribution_pdf(data):
             break
     
     if usage_column:
-        elements.append(Paragraph("<br/>", styles["Normal"]))  # Reduced spacing
-        elements.append(Paragraph("User Activation Statistics", styles["Heading3"]))
+        elements.append(Paragraph("<br/><br/>", styles["Normal"]))
+        elements.append(Paragraph("User Activation Statistics", styles["Heading2"]))
         
         usage_counts = data[usage_column].value_counts().reset_index()
         usage_counts.columns = ['Status', 'Count']
@@ -458,26 +419,19 @@ def generate_org_distribution_pdf(data):
                 f"{percentage:.2f}%"
             ])
         
-        # Create the usage table with compact styling
+        # Create the usage table
         if len(usage_table_data) > 1:
-            # Set appropriate column widths
-            col_widths = [200, 50, 80]
+            usage_table = Table(usage_table_data)
             
-            usage_table = Table(usage_table_data, colWidths=col_widths)
-            
-            # Add compact style
+            # Add style
             usage_style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.lightgreen),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.darkblue),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),  # Smaller font size
-                ('TOPPADDING', (0, 0), (-1, -1), 2),  # Reduced padding
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),  # Reduced padding
-                ('LEFTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
-                ('RIGHTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.black)  # Thinner grid lines
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ])
             
             # Add zebra striping for readability
@@ -488,12 +442,10 @@ def generate_org_distribution_pdf(data):
             usage_table.setStyle(usage_style)
             elements.append(usage_table)
     
-    # Add compact summary at the end
-    small_text_style = styles["Normal"]
-    small_text_style.fontSize = 9
-    elements.append(Paragraph("<br/>", small_text_style))
-    elements.append(Paragraph(f"Total Organizations: {len(org_counts)}", small_text_style))
-    elements.append(Paragraph(f"Total Users: {total_users}", small_text_style))
+    # Add summary at the end
+    elements.append(Paragraph("<br/>", styles["Normal"]))
+    elements.append(Paragraph(f"Total Organizations: {len(org_counts)}", styles["Normal"]))
+    elements.append(Paragraph(f"Total Users: {total_users}", styles["Normal"]))
     
     # Build PDF
     doc.build(elements)
