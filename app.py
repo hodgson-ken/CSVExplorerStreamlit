@@ -840,7 +840,21 @@ if login():
                     with col2:
                         st.metric("Inactive Users", f"{no_count} ({(no_count/total*100):.1f}%)")
 else:
-    # User not authenticated, display login message
+    # User not authenticated, display login message and form
     st.title("CSV Data Explorer")
     st.write("Please log in to access the application.")
     st.write("Default credentials: admin/admin")
+    
+    # Force display of login form in main area as well (in case sidebar is collapsed)
+    with st.form("login_form_main"):
+        username = st.text_input("Username", key="main_username")
+        password = st.text_input("Password", type="password", key="main_password")
+        submit = st.form_submit_button("Login")
+        
+        if submit:
+            if verify_user(username, password):
+                st.session_state.authenticated = True
+                st.session_state.username = username
+                st.rerun()
+            else:
+                st.error("Invalid username or password")
