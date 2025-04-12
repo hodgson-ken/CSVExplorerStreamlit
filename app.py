@@ -191,8 +191,8 @@ def generate_pdf(data, org_name="All"):
     
     # Create the PDF document with minimal margins to maximize table width
     doc = SimpleDocTemplate(buffer, pagesize=letter,
-                          leftMargin=20, rightMargin=20,
-                          topMargin=30, bottomMargin=30)
+                          leftMargin=20, rightMargin=5,
+                          topMargin=10, bottomMargin=10)
     elements = []
     
     # Helper function to add header to each page
@@ -268,10 +268,10 @@ def generate_pdf(data, org_name="All"):
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                     ('FONTSIZE', (0, 0), (-1, 0), 8),  # Header font size
                     ('FONTSIZE', (0, 1), (-1, -1), 8),  # Data font size
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 1),  # Minimal bottom padding
-                    ('TOPPADDING', (0, 0), (-1, -1), 1),  # Minimal top padding
-                    ('LEFTPADDING', (0, 0), (-1, -1), 2),  # Minimal horizontal spacing
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 2),  # Minimal horizontal spacing
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 3),  # More vertical padding
+                    ('TOPPADDING', (0, 0), (-1, -1), 3),  # More vertical padding
+                    ('LEFTPADDING', (0, 0), (-1, -1), 1),  # Minimal horizontal spacing
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 1),  # Minimal horizontal spacing
                     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                     ('GRID', (0, 0), (-1, -1), 0.25, colors.black),  # Very thin grid lines
                     ('LEADING', (0, 0), (-1, -1), 6),  # Very tight line spacing
@@ -345,8 +345,8 @@ def generate_org_distribution_pdf(data):
     
     # Create the PDF document with minimal margins to maximize table width
     doc = SimpleDocTemplate(buffer, pagesize=letter,
-                          leftMargin=20, rightMargin=20,
-                          topMargin=30, bottomMargin=30)
+                          leftMargin=20, rightMargin=5,
+                          topMargin=10, bottomMargin=10)
     elements = []
     
     # Add a title
