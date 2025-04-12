@@ -487,7 +487,10 @@ def send_email(recipient_email, subject, body, pdf_buffer, filename):
                 
                 with open(log_file, "a") as f:
                     f.write(f"Logging in as {email_username}...\n")
-                server.login(user=email_username, password=email_password)
+                # Convert to string to avoid None type issues
+                username = str(email_username)
+                password = str(email_password)
+                server.login(username, password)
             except smtplib.SMTPAuthenticationError as auth_error:
                 error_msg = f"Authentication failed: {str(auth_error)}"
                 with open(log_file, "a") as f:
