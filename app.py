@@ -452,9 +452,11 @@ def send_email(recipient_email, subject, body, pdf_buffer, filename):
                 if email_port == '465':
                     with open(log_file, "a") as f:
                         f.write("Using SMTP_SSL for direct SSL connection (port 465)...\n")
-                    server = smtplib.SMTP_SSL(host=email_host, port=int(email_port), timeout=10)
+                    # Increase timeout for SSL connections
+                    server = smtplib.SMTP_SSL(host=email_host, port=int(email_port), timeout=60)
                 else:
-                    server = smtplib.SMTP(host=email_host, port=int(email_port), timeout=10)
+                    # Increase timeout for standard connections
+                    server = smtplib.SMTP(host=email_host, port=int(email_port), timeout=60)
                     # Start TLS for non-SSL connections
                     try:
                         with open(log_file, "a") as f:
@@ -526,9 +528,11 @@ def send_email(recipient_email, subject, body, pdf_buffer, filename):
                 f.write(f"ERROR: {error_msg}\n")
             return False, error_msg
         except TimeoutError:
-            error_msg = f"Connection timed out while connecting to {email_host}:{email_port}"
+            error_msg = f"Connection timed out while connecting to {email_host}:{email_port}. Gmail may be blocking the connection for security reasons."
             with open(log_file, "a") as f:
                 f.write(f"ERROR: {error_msg}\n")
+                f.write("SUGGESTION: Check that 'Less secure app access' is enabled in your Gmail settings,\n")
+                f.write("or use an app-specific password if you have 2-factor authentication enabled.\n")
             return False, error_msg
         except socket.gaierror as dns_error:
             error_msg = f"DNS resolution error for {email_host}: {str(dns_error)}"
@@ -542,11 +546,20 @@ def send_email(recipient_email, subject, body, pdf_buffer, filename):
             return False, error_msg
         except Exception as smtp_error:
             error_msg = f"SMTP error: {str(smtp_error)}"
-            with open(log_file, "a") as f:
-                f.write(f"ERROR: {error_msg}\n")
-                f.write(f"Error type: {type(smtp_error).__name__}\n")
-                import traceback
-                f.write(traceback.format_exc())
+            # Handle specific error message for "connection unexpectedly closed"
+            if "unexpectedly closed" in str(smtp_error).lower():
+                error_msg = "Connection unexpectedly closed. Gmail may be blocking the connection due to security settings."
+                with open(log_file, "a") as f:
+                    f.write(f"ERROR: {error_msg}\n")
+                    f.write("SUGGESTION: Check that 'Less secure app access' is enabled in your Gmail settings,\n")
+                    f.write("or use an app-specific password if you have 2-factor authentication enabled.\n")
+                    f.write("Note: Gmail is deprecating 'Less secure app access', so using an app-specific password is recommended.\n")
+            else:
+                with open(log_file, "a") as f:
+                    f.write(f"ERROR: {error_msg}\n")
+                    f.write(f"Error type: {type(smtp_error).__name__}\n")
+                    import traceback
+                    f.write(traceback.format_exc())
             return False, error_msg
             
     except Exception as e:
