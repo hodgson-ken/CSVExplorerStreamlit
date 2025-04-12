@@ -193,16 +193,27 @@ def generate_pdf(data, org_name="All"):
     doc = SimpleDocTemplate(buffer, pagesize=letter)
     elements = []
     
-    # Add a title
-    styles = getSampleStyleSheet()
-    title_text = f"User Data Report - {org_name} Organization" if org_name != "All" else "User Data Report - All Organizations"
-    title = Paragraph(title_text, styles["Heading1"])
-    elements.append(title)
+    # Helper function to add header to each page
+    def add_headers(elements, styles, org_title=None):
+        # Add a title
+        if org_title:
+            title_text = f"User Data Report - {org_title}"
+        else:
+            title_text = f"User Data Report - {org_name} Organization" if org_name != "All" else "User Data Report - All Organizations"
+        
+        title = Paragraph(title_text, styles["Heading1"])
+        elements.append(title)
+        
+        # Add timestamp
+        timestamp = Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles["Normal"])
+        elements.append(timestamp)
+        elements.append(Paragraph("<br/>", styles["Normal"]))  # Add some space
+        
+        return elements
     
-    # Add timestamp
-    timestamp = Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles["Normal"])
-    elements.append(timestamp)
-    elements.append(Paragraph("<br/>", styles["Normal"]))  # Add some space
+    # Add the headers to the first page
+    styles = getSampleStyleSheet()
+    elements = add_headers(elements, styles)
     
     # Make a copy and sort by Description
     pdf_data = data.copy()
@@ -218,38 +229,90 @@ def generate_pdf(data, org_name="All"):
     cols_to_display = ['Org', 'First name', 'Last name', 'Email', 'Description', 'Has Used']
     existing_cols = [col for col in cols_to_display if col in pdf_data.columns]
     
-    # Create table data with header
-    table_data = [existing_cols]  # Header row
-    
-    # Add rows
-    for _, row in pdf_data.iterrows():
-        table_row = [str(row[col]) if not pd.isna(row[col]) else "" for col in existing_cols]
-        table_data.append(table_row)
-    
-    # Create the table
-    if len(table_data) > 1:  # Only create table if there are rows
-        table = Table(table_data)
+    if org_name == "All":
+        # Get unique organizations
+        orgs = pdf_data['Org'].unique()
         
-        # Add style
-        style = TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ])
+        # Loop through each organization and create a separate page
+        for i, org in enumerate(orgs):
+            # Filter data for this organization
+            org_data = pdf_data[pdf_data['Org'] == org]
+            
+            if i > 0:  # Add page break after first organization
+                elements.append(PageBreak())
+                elements = add_headers(elements, styles, org)
+            else:
+                # Add organization header for the first organization
+                elements.append(Paragraph(f"Organization: {org}", styles["Heading2"]))
+            
+            # Create table data with header
+            table_data = [existing_cols]  # Header row
+            
+            # Add rows
+            for _, row in org_data.iterrows():
+                table_row = [str(row[col]) if not pd.isna(row[col]) else "" for col in existing_cols]
+                table_data.append(table_row)
+            
+            # Create the table
+            if len(table_data) > 1:  # Only create table if there are rows
+                table = Table(table_data)
+                
+                # Add style
+                style = TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ])
+                
+                # Add zebra striping for readability
+                for i in range(1, len(table_data)):
+                    if i % 2 == 0:
+                        style.add('BACKGROUND', (0, i), (-1, i), colors.white)
+                
+                table.setStyle(style)
+                elements.append(table)
+            
+            # Add record count for this organization
+            org_record_count = len(org_data)
+            elements.append(Paragraph(f"<br/>Records: {org_record_count}", styles["Normal"]))
+    else:
+        # Single organization case - just create one table
+        # Create table data with header
+        table_data = [existing_cols]  # Header row
         
-        # Add zebra striping for readability
-        for i in range(1, len(table_data)):
-            if i % 2 == 0:
-                style.add('BACKGROUND', (0, i), (-1, i), colors.white)
+        # Add rows
+        for _, row in pdf_data.iterrows():
+            table_row = [str(row[col]) if not pd.isna(row[col]) else "" for col in existing_cols]
+            table_data.append(table_row)
         
-        table.setStyle(style)
-        elements.append(table)
+        # Create the table
+        if len(table_data) > 1:  # Only create table if there are rows
+            table = Table(table_data)
+            
+            # Add style
+            style = TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ])
+            
+            # Add zebra striping for readability
+            for i in range(1, len(table_data)):
+                if i % 2 == 0:
+                    style.add('BACKGROUND', (0, i), (-1, i), colors.white)
+            
+            table.setStyle(style)
+            elements.append(table)
     
-    # Add record count
+    # Add total record count
     record_count = len(data)
     elements.append(Paragraph(f"<br/>Total Records: {record_count}", styles["Normal"]))
     
@@ -266,23 +329,16 @@ def generate_org_distribution_pdf(data):
     doc = SimpleDocTemplate(buffer, pagesize=letter)
     elements = []
     
-    # Helper function to add header to each page
-    def add_headers(elements, styles):
-        # Add a title
-        title_text = "Organization Distribution Report"
-        title = Paragraph(title_text, styles["Heading1"])
-        elements.append(title)
-        
-        # Add timestamp
-        timestamp = Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles["Normal"])
-        elements.append(timestamp)
-        elements.append(Paragraph("<br/>", styles["Normal"]))  # Add some space
-        
-        return elements
-    
-    # Add the headers to the first page
+    # Add a title
     styles = getSampleStyleSheet()
-    elements = add_headers(elements, styles)
+    title_text = "Organization Distribution Report"
+    title = Paragraph(title_text, styles["Heading1"])
+    elements.append(title)
+    
+    # Add timestamp
+    timestamp = Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles["Normal"])
+    elements.append(timestamp)
+    elements.append(Paragraph("<br/>", styles["Normal"]))  # Add some space
     
     # Get organization distribution
     org_counts = data['Org'].value_counts().reset_index()
@@ -292,9 +348,8 @@ def generate_org_distribution_pdf(data):
     # Calculate total for percentage
     total_users = len(data)
     
-    # Section 1: Organization Distribution Summary
-    # Add summary of all organizations in one table
-    elements.append(Paragraph("Organization Distribution Summary", styles["Heading2"]))
+    # Add Organization Distribution table
+    elements.append(Paragraph("Organization Distribution", styles["Heading2"]))
     elements.append(Paragraph("<br/>", styles["Normal"]))
     
     # Create table data with header
@@ -335,7 +390,7 @@ def generate_org_distribution_pdf(data):
         summary_table.setStyle(style)
         elements.append(summary_table)
     
-    # Add usage statistics if available (before detailed breakdown)
+    # Add usage statistics if available
     usage_column = None
     for col in data.columns:
         if 'accepted' in col.lower() and 'invitation' in col.lower():
@@ -387,89 +442,9 @@ def generate_org_distribution_pdf(data):
             usage_table.setStyle(usage_style)
             elements.append(usage_table)
     
-    # Add a page break before detailed organization breakdown
-    elements.append(PageBreak())
-    
-    # Section 2: Detailed Organization Breakdown
-    # Add headers to the new page
-    elements = add_headers(elements, styles)
-    elements.append(Paragraph("Detailed Organization Breakdown", styles["Heading2"]))
-    elements.append(Paragraph("<br/>", styles["Normal"]))
-    
-    # Loop through each organization and create a detailed section 
-    for i, (_, row) in enumerate(org_counts.iterrows()):
-        org_name = row['Organization']
-        count = row['Count']
-        
-        # Add organization header
-        org_title = Paragraph(f"Organization: {org_name}", styles["Heading3"])
-        elements.append(org_title)
-        
-        # Filter data for this organization
-        org_data = data[data['Org'] == org_name]
-        
-        # Organization stats
-        org_percent = (count / total_users) * 100 if total_users > 0 else 0
-        elements.append(Paragraph(f"Count: {count} users ({org_percent:.2f}% of total)", styles["Normal"]))
-        
-        # Add usage breakdown for this organization if available
-        if usage_column:
-            # Get usage stats for this organization
-            org_usage = org_data[usage_column].value_counts().reset_index()
-            org_usage.columns = ['Status', 'Count']
-            
-            # Create usage table for this organization
-            org_usage_table_data = [['Status', 'Count', 'Percentage']]
-            
-            for _, u_row in org_usage.iterrows():
-                status = u_row['Status'] if not pd.isna(u_row['Status']) else "Not Specified"
-                u_count = u_row['Count']
-                u_percentage = (u_count / count) * 100 if count > 0 else 0
-                
-                org_usage_table_data.append([
-                    str(status),
-                    str(u_count),
-                    f"{u_percentage:.2f}%"
-                ])
-            
-            # Create and style the table
-            if len(org_usage_table_data) > 1:
-                org_usage_table = Table(org_usage_table_data)
-                
-                usage_style = TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightgreen),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.darkblue),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
-                ])
-                
-                # Add zebra striping
-                for j in range(1, len(org_usage_table_data)):
-                    if j % 2 == 0:
-                        usage_style.add('BACKGROUND', (0, j), (-1, j), colors.white)
-                
-                org_usage_table.setStyle(usage_style)
-                elements.append(org_usage_table)
-        
-        # Add space between organizations
-        elements.append(Paragraph("<br/><br/>", styles["Normal"]))
-        
-        # Add page break after each organization except the last one
-        if i < len(org_counts) - 1:
-            elements.append(PageBreak())
-            # Add headers to each new page
-            elements = add_headers(elements, styles)
-            elements.append(Paragraph("Detailed Organization Breakdown (continued)", styles["Heading2"]))
-            elements.append(Paragraph("<br/>", styles["Normal"]))
-    
     # Add summary at the end
-    elements.append(PageBreak())
-    elements = add_headers(elements, styles)
-    elements.append(Paragraph("Summary", styles["Heading2"]))
-    elements.append(Paragraph(f"<br/>Total Organizations: {len(org_counts)}", styles["Normal"]))
+    elements.append(Paragraph("<br/>", styles["Normal"]))
+    elements.append(Paragraph(f"Total Organizations: {len(org_counts)}", styles["Normal"]))
     elements.append(Paragraph(f"Total Users: {total_users}", styles["Normal"]))
     
     # Build PDF
