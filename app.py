@@ -51,6 +51,12 @@ if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 if 'username' not in st.session_state:
     st.session_state.username = None
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = None
+if 'user_email' not in st.session_state:
+    st.session_state.user_email = None
+if 'is_admin' not in st.session_state:
+    st.session_state.is_admin = False
     
 # Authentication functions
 def create_admin_user():
@@ -68,7 +74,8 @@ def create_admin_user():
                     id SERIAL PRIMARY KEY,
                     username TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL,
-                    is_admin BOOLEAN DEFAULT FALSE
+                    is_admin BOOLEAN DEFAULT FALSE,
+                    email TEXT
                 )
                 """)
                 connection.execute(create_table_query)
@@ -95,17 +102,17 @@ def verify_user(username, password):
             
             # Query the user
             query = text("""
-            SELECT id, username, is_admin FROM users 
+            SELECT id, username, is_admin, email FROM users 
             WHERE username = :username AND password = :password
             """)
             result = connection.execute(query, {"username": username, "password": hashed_password}).fetchone()
             
             if result:
-                return True, result[0], result[1], result[2]
-            return False, None, None, None
+                return True, result[0], result[1], result[2], result[3]
+            return False, None, None, None, None
     except Exception as e:
         st.error(f"Authentication error: {str(e)}")
-        return False, None, None, None
+        return False, None, None, None, None
     
 def change_password(username, current_password, new_password):
     """Change a user's password"""
@@ -140,6 +147,23 @@ def change_password(username, current_password, new_password):
             return True, "Password updated successfully"
     except Exception as e:
         return False, f"Error changing password: {str(e)}"
+        
+def update_user_email(username, email):
+    """Update a user's email address"""
+    try:
+        with engine.connect() as connection:
+            # Update the email
+            update_query = text("""
+            UPDATE users 
+            SET email = :email 
+            WHERE username = :username
+            """)
+            connection.execute(update_query, {"username": username, "email": email})
+            connection.commit()
+            
+            return True, "Email updated successfully"
+    except Exception as e:
+        return False, f"Error updating email: {str(e)}"
 
 def login():
     """Handle user login"""
@@ -154,11 +178,13 @@ def login():
         submit = st.form_submit_button("Login")
         
         if submit:
-            success, user_id, user_name, is_admin = verify_user(username, password)
+            success, user_id, user_name, is_admin, user_email = verify_user(username, password)
             if success:
                 st.session_state.authenticated = True
                 st.session_state.username = user_name
                 st.session_state.is_admin = is_admin
+                st.session_state.user_id = user_id
+                st.session_state.user_email = user_email
                 st.success("Login successful!")
                 st.rerun()
             else:
@@ -755,6 +781,25 @@ if login():
                         st.success(message)
                     else:
                         st.error(message)
+                        
+    # Email profile management
+    with st.sidebar.expander("Update Email Address"):
+        with st.form("update_email_form"):
+            current_email = st.session_state.user_email if st.session_state.user_email else ""
+            email = st.text_input("Email Address", value=current_email)
+            email_submit = st.form_submit_button("Update Email")
+            
+            if email_submit:
+                if not email or "@" not in email:
+                    st.error("Please enter a valid email address")
+                else:
+                    success, message = update_user_email(st.session_state.username, email)
+                    if success:
+                        # Update session state with new email
+                        st.session_state.user_email = email
+                        st.success(message)
+                    else:
+                        st.error(message)
     
     # Logout button
     if st.sidebar.button("Logout"):
@@ -840,6 +885,9 @@ if login():
             
             # Get unique descriptions from the filtered data
             descriptions = filtered_data['Description'].unique().tolist()
+            
+            # Filter out None values before sorting
+            descriptions = [desc for desc in descriptions if desc is not None]
             descriptions.sort()
             
             # Allow user to select multiple descriptions to email
@@ -848,16 +896,34 @@ if login():
                 options=descriptions
             )
             
+            # Option to include user's own email in recipients
+            include_self = False
+            if st.session_state.user_email:
+                include_self = st.checkbox("Include my email as recipient", value=False,
+                                          help=f"Add your email ({st.session_state.user_email}) to the recipient list")
+            elif st.checkbox("Include my email as recipient", value=False, disabled=True):
+                st.info("Set your email address in the 'Update Email Address' section in the sidebar to include yourself as a recipient.")
+            
             # Extract email addresses for selected descriptions
-            if selected_descriptions:
-                # Get the rows that match the selected descriptions
-                recipient_data = filtered_data[filtered_data['Description'].isin(selected_descriptions)]
+            if selected_descriptions or include_self:
+                # Initialize recipient emails list
+                recipient_emails = []
                 
-                # Extract the email addresses
-                recipient_emails = recipient_data['Email'].tolist()
+                # Add emails from selected descriptions if any
+                if selected_descriptions:
+                    # Get the rows that match the selected descriptions
+                    recipient_data = filtered_data[filtered_data['Description'].isin(selected_descriptions)]
+                    
+                    # Extract the email addresses
+                    description_emails = recipient_data['Email'].tolist()
+                    
+                    # Filter out null or empty emails
+                    description_emails = [email for email in description_emails if email and not pd.isna(email)]
+                    recipient_emails.extend(description_emails)
                 
-                # Filter out null or empty emails
-                recipient_emails = [email for email in recipient_emails if email and not pd.isna(email)]
+                # Add user's own email if selected
+                if include_self and st.session_state.user_email:
+                    recipient_emails.append(st.session_state.user_email)
                 
                 if recipient_emails:
                     st.write(f"Found {len(recipient_emails)} email(s) for the selected contact(s).")
