@@ -1,45 +1,53 @@
-import io
 import os
+import re
+import io
 import hashlib
+import warnings
 from datetime import datetime
 
+# Suppress SQLAlchemy warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+# Third-party imports
 import streamlit as st
 import pandas as pd
-from sqlalchemy import create_engine, text
-from sqlalchemy.sql import text
-from sqlalchemy.orm import sessionmaker
+import sqlalchemy
+from sqlalchemy import create_engine, text, Column, Integer, String, DateTime
+from sqlalchemy.orm import declarative_base, sessionmaker
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, PageBreak
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 
-# Initialize database engine
-DATABASE_URL = os.environ.get("DATABASE_URL")
-engine = create_engine(DATABASE_URL)
+# Set page title and layout
+st.set_page_config(
+    page_title="CSV Data Explorer",
+    layout="wide"
+)
 
-# Initialize session state
+# Database connection setup
+DATABASE_URL = os.environ.get('DATABASE_URL')
+engine = create_engine(DATABASE_URL)
+Base = declarative_base()
+Session = sessionmaker(bind=engine)
+
+# Initialize session state variables if they don't exist
+if 'data' not in st.session_state:
+    st.session_state.data = None
+if 'schema_created' not in st.session_state:
+    st.session_state.schema_created = False
+if 'columns' not in st.session_state:
+    st.session_state.columns = []
+if 'upload_timestamp' not in st.session_state:
+    st.session_state.upload_timestamp = None
+if 'db_data_loaded' not in st.session_state:
+    st.session_state.db_data_loaded = False
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
-    
 if 'username' not in st.session_state:
     st.session_state.username = None
     
-if 'data' not in st.session_state:
-    st.session_state.data = None
-    
-if 'columns' not in st.session_state:
-    st.session_state.columns = []
-    
-if 'schema_created' not in st.session_state:
-    st.session_state.schema_created = False
-    
-if 'upload_timestamp' not in st.session_state:
-    st.session_state.upload_timestamp = None
-    
-if 'db_data_loaded' not in st.session_state:
-    st.session_state.db_data_loaded = False
-
-# Function to create admin user in database if it doesn't exist
+# Authentication functions
 def create_admin_user():
     """Create admin user in database if it doesn't exist"""
     try:
@@ -50,153 +58,165 @@ def create_admin_user():
             
             if not result[0]:
                 # Create users table
-                create_users_table = text("""
-                    CREATE TABLE users (
-                        id SERIAL PRIMARY KEY,
-                        username VARCHAR(50) UNIQUE NOT NULL,
-                        password_hash VARCHAR(128) NOT NULL,
-                        is_admin BOOLEAN DEFAULT FALSE
-                    )
+                create_table_query = text("""
+                CREATE TABLE users (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    is_admin BOOLEAN DEFAULT FALSE
+                )
                 """)
-                connection.execute(create_users_table)
+                connection.execute(create_table_query)
                 connection.commit()
                 
-            # Check if admin user exists
-            admin_check = text("SELECT EXISTS (SELECT FROM users WHERE username = 'admin')")
-            result = connection.execute(admin_check).fetchone()
-            
-            if not result[0]:
-                # Create admin user with default password 'admin'
-                password_hash = hashlib.sha256('admin'.encode()).hexdigest()
-                insert_admin = text(f"INSERT INTO users (username, password_hash, is_admin) VALUES ('admin', '{password_hash}', TRUE)")
-                connection.execute(insert_admin)
+                # Add admin user (default password: admin)
+                admin_pass = hashlib.sha256("admin".encode()).hexdigest()
+                insert_query = text("""
+                INSERT INTO users (username, password, is_admin) 
+                VALUES ('admin', :password, TRUE)
+                ON CONFLICT (username) DO NOTHING
+                """)
+                connection.execute(insert_query, {"password": admin_pass})
                 connection.commit()
-                
-        return True
     except Exception as e:
-        st.error(f"Error creating admin user: {str(e)}")
-        return False
+        st.error(f"Error setting up authentication: {str(e)}")
 
-# Create admin user on startup
-create_admin_user()
-
-# Function to verify user credentials
 def verify_user(username, password):
     """Verify user credentials"""
     try:
         with engine.connect() as connection:
-            password_hash = hashlib.sha256(password.encode()).hexdigest()
-            query = text(f"SELECT * FROM users WHERE username = '{username}' AND password_hash = '{password_hash}'")
-            result = connection.execute(query).fetchone()
+            # Hash the password
+            hashed_password = hashlib.sha256(password.encode()).hexdigest()
+            
+            # Query the user
+            query = text("""
+            SELECT id, username, is_admin FROM users 
+            WHERE username = :username AND password = :password
+            """)
+            result = connection.execute(query, {"username": username, "password": hashed_password}).fetchone()
             
             if result:
-                return True
-            return False
+                return True, result[0], result[1], result[2]
+            return False, None, None, None
     except Exception as e:
-        st.error(f"Error verifying user: {str(e)}")
-        return False
-
-# Function to change a user's password
+        st.error(f"Authentication error: {str(e)}")
+        return False, None, None, None
+    
 def change_password(username, current_password, new_password):
     """Change a user's password"""
     try:
-        # First verify the current password
-        if not verify_user(username, current_password):
-            return False, "Current password is incorrect"
-        
-        # Update the password
+        # First, verify the current password
         with engine.connect() as connection:
-            new_password_hash = hashlib.sha256(new_password.encode()).hexdigest()
-            query = text(f"UPDATE users SET password_hash = '{new_password_hash}' WHERE username = '{username}'")
-            connection.execute(query)
+            # Hash the current password
+            hashed_current = hashlib.sha256(current_password.encode()).hexdigest()
+            
+            # Verify current password
+            verify_query = text("""
+            SELECT id FROM users 
+            WHERE username = :username AND password = :password
+            """)
+            result = connection.execute(verify_query, {"username": username, "password": hashed_current}).fetchone()
+            
+            if not result:
+                return False, "Current password is incorrect"
+            
+            # Hash the new password
+            hashed_new = hashlib.sha256(new_password.encode()).hexdigest()
+            
+            # Update the password
+            update_query = text("""
+            UPDATE users 
+            SET password = :password 
+            WHERE username = :username
+            """)
+            connection.execute(update_query, {"username": username, "password": hashed_new})
             connection.commit()
             
-        return True, "Password changed successfully"
+            return True, "Password updated successfully"
     except Exception as e:
         return False, f"Error changing password: {str(e)}"
 
-# Function to handle user login
 def login():
     """Handle user login"""
-    # If already authenticated, return True
     if st.session_state.authenticated:
         return True
     
-    # Display login form
-    st.sidebar.title("Login")
-    username = st.sidebar.text_input("Username")
-    password = st.sidebar.text_input("Password", type="password")
+    st.title("CSV Data Explorer - Login")
     
-    if st.sidebar.button("Login"):
-        if verify_user(username, password):
-            st.session_state.authenticated = True
-            st.session_state.username = username
-            st.rerun()
-        else:
-            st.sidebar.error("Invalid username or password")
+    with st.form("login_form"):
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        submit = st.form_submit_button("Login")
+        
+        if submit:
+            success, user_id, user_name, is_admin = verify_user(username, password)
+            if success:
+                st.session_state.authenticated = True
+                st.session_state.username = user_name
+                st.session_state.is_admin = is_admin
+                st.success("Login successful!")
+                st.rerun()
+            else:
+                st.error("Invalid username or password")
     
-    return st.session_state.authenticated
+    st.markdown("Default credentials: admin/admin")
+    
+    return False
 
-# Function to determine organization based on email/description
+# Ensure admin user exists
+create_admin_user()
+
+# Helper function to determine organization based on rules from SQL query logic
 def determine_org(row):
-    # Default fallback
-    default_org = "Unknown"
+    # Default to blank org if description is empty
+    if pd.isna(row.get('Description', '')) or row.get('Description', '') == '':
+        return '(blank org)'
     
-    # Check Description field
-    if 'Description' in row:
-        description = str(row['Description']).lower() if not pd.isna(row['Description']) else ""
-        
-        # Look for organization name in description
-        if 'stake' in description:
-            return 'Stake'
-        elif 'mission' in description:
-            return 'Mission'
-        elif 'district' in description:
-            return 'District'
+    # Extract organization prefix (characters before first space)
+    description = row.get('Description', '')
+    match = re.search(r'^(\S+)', description)
+    org_prefix = match.group(1) if match else '(blank org)'
     
-    # Check email domain as fallback
-    if 'Email' in row:
-        email = str(row['Email']).lower() if not pd.isna(row['Email']) else ""
-        
-        if '@stake' in email:
-            return 'Stake'
-        elif '@mission' in email:
-            return 'Mission'
-        elif '@district' in email:
-            return 'District'
-    
-    return default_org
+    # Apply special cases based on SQL logic
+    if row.get('User role', '') == 'Manager' or ('stake' in description.lower()):
+        return 'Stake'
+    elif row.get('Invited by email', '') in ['jdwheeler@churchofjesuschrist.org', 'ron.saunders@churchofjesuschrist.org'] or row.get('User role', '') == 'Adminstrator':
+        return 'FM'
+    else:
+        return org_prefix
 
-# Function to generate a PDF with the filtered data
+# Function to generate PDF
 def generate_pdf(data, org_name="All"):
     buffer = io.BytesIO()
     
-    # Create the PDF document with minimal margins to maximize table width
-    doc = SimpleDocTemplate(buffer, pagesize=letter,
-                          leftMargin=5, rightMargin=5,
-                          topMargin=10, bottomMargin=10)
+    # Create the PDF document
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
     elements = []
     
-    # Add a title
+    # Helper function to add header to each page
+    def add_headers(elements, styles, org_title=None):
+        # Add a title
+        if org_title:
+            title_text = f"User Data Report - {org_title}"
+        else:
+            title_text = f"User Data Report - {org_name} Organization" if org_name != "All" else "User Data Report - All Organizations"
+        
+        title = Paragraph(title_text, styles["Heading1"])
+        elements.append(title)
+        
+        # Add timestamp
+        timestamp = Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles["Normal"])
+        elements.append(timestamp)
+        elements.append(Paragraph("<br/>", styles["Normal"]))  # Add some space
+        
+        return elements
+    
+    # Add the headers to the first page
     styles = getSampleStyleSheet()
+    elements = add_headers(elements, styles)
     
-    # Add title with organization name
-    if org_name == "All":
-        title_text = "User Data Report - All Organizations"
-    else:
-        title_text = f"User Data Report - {org_name}"
-    
-    title = Paragraph(title_text, styles["Heading1"])
-    elements.append(title)
-    
-    # Add timestamp
-    timestamp = Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles["Normal"])
-    elements.append(timestamp)
-    
-    # Create a copy of the data for PDF generation
+    # Make a copy and sort by Description
     pdf_data = data.copy()
-    
-    # Sort data by Description
     pdf_data = pdf_data.sort_values(by=['Description'])
     
     # Rename any variation of 'Accepted site invitation' to 'Has Used'
@@ -205,54 +225,47 @@ def generate_pdf(data, org_name="All"):
             pdf_data = pdf_data.rename(columns={col: 'Has Used'})
             break
     
-    # Select relevant columns similar to SQL query
+    # Prepare data for the table
     cols_to_display = ['Org', 'First name', 'Last name', 'Email', 'Description', 'Has Used']
-    # Filter to only include columns that actually exist in the data
     existing_cols = [col for col in cols_to_display if col in pdf_data.columns]
     
-    # Check if we're generating a report for all orgs or one specific org
     if org_name == "All":
-        # Get list of all organizations
-        organizations = sorted(pdf_data['Org'].unique())
+        # Get unique organizations
+        orgs = pdf_data['Org'].unique()
         
-        # For each organization, add a section with header and table
-        for org in organizations:
-            # Add organization header
-            elements.append(Paragraph(f"<br/><b>Organization: {org}</b>", styles["Heading2"]))
-            
+        # Loop through each organization and create a separate page
+        for i, org in enumerate(orgs):
             # Filter data for this organization
             org_data = pdf_data[pdf_data['Org'] == org]
+            
+            if i > 0:  # Add page break after first organization
+                elements.append(PageBreak())
+                elements = add_headers(elements, styles, org)
+            else:
+                # Add organization header for the first organization
+                elements.append(Paragraph(f"Organization: {org}", styles["Heading2"]))
             
             # Create table data with header
             table_data = [existing_cols]  # Header row
             
-            # Add rows for this organization
+            # Add rows
             for _, row in org_data.iterrows():
                 table_row = [str(row[col]) if not pd.isna(row[col]) else "" for col in existing_cols]
                 table_data.append(table_row)
             
             # Create the table
             if len(table_data) > 1:  # Only create table if there are rows
-                # Create table with explicit width set to 100% of available space
-                available_width = 540  # Letter page width (612) minus minimum margins
-                table = Table(table_data, colWidths=[available_width/len(existing_cols)]*len(existing_cols))
+                table = Table(table_data)
                 
-                # Create table with full width and slightly larger fonts
+                # Add style
                 style = TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 8),  # Header font size
-                    ('FONTSIZE', (0, 1), (-1, -1), 8),  # Data font size
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 3),  # More vertical padding
-                    ('TOPPADDING', (0, 0), (-1, -1), 3),  # More vertical padding
-                    ('LEFTPADDING', (0, 0), (-1, -1), 1),  # Minimal horizontal spacing
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 1),  # Minimal horizontal spacing
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                    ('GRID', (0, 0), (-1, -1), 0.25, colors.black),  # Very thin grid lines
-                    ('LEADING', (0, 0), (-1, -1), 6),  # Very tight line spacing
-                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')  # Vertical alignment
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ])
                 
                 # Add zebra striping for readability
@@ -266,10 +279,6 @@ def generate_pdf(data, org_name="All"):
             # Add record count for this organization
             org_record_count = len(org_data)
             elements.append(Paragraph(f"<br/>Records: {org_record_count}", styles["Normal"]))
-            
-            # Add a page break after each organization except the last one
-            if org != organizations[-1]:
-                elements.append(PageBreak())
     else:
         # Single organization case - just create one table
         # Create table data with header
@@ -282,26 +291,17 @@ def generate_pdf(data, org_name="All"):
         
         # Create the table
         if len(table_data) > 1:  # Only create table if there are rows
-            # Create table with explicit width set to 100% of available space
-            available_width = 540  # Letter page width (612) minus minimum margins
-            table = Table(table_data, colWidths=[available_width/len(table_data[0])]*len(table_data[0]))
+            table = Table(table_data)
             
-            # Create table with full width and slightly larger fonts
+            # Add style
             style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 8),  # Header font size
-                ('FONTSIZE', (0, 1), (-1, -1), 8),  # Data font size
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),  # More vertical padding
-                ('TOPPADDING', (0, 0), (-1, -1), 3),  # More vertical padding
-                ('LEFTPADDING', (0, 0), (-1, -1), 1),  # Minimal horizontal spacing
-                ('RIGHTPADDING', (0, 0), (-1, -1), 1),  # Minimal horizontal spacing
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 0.25, colors.black),  # Very thin grid lines
-                ('LEADING', (0, 0), (-1, -1), 6),  # Very tight line spacing
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')  # Vertical alignment
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ])
             
             # Add zebra striping for readability
@@ -325,10 +325,8 @@ def generate_pdf(data, org_name="All"):
 def generate_org_distribution_pdf(data):
     buffer = io.BytesIO()
     
-    # Create the PDF document with minimal margins to maximize table width
-    doc = SimpleDocTemplate(buffer, pagesize=letter,
-                          leftMargin=5, rightMargin=5,
-                          topMargin=10, bottomMargin=10)
+    # Create the PDF document
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
     elements = []
     
     # Add a title
@@ -371,24 +369,17 @@ def generate_org_distribution_pdf(data):
     
     # Create the summary table
     if len(summary_table_data) > 1:
-        # Create summary table with explicit width set to 100% of available space
-        available_width = 540  # Letter page width (612) minus minimum margins
-        summary_table = Table(summary_table_data, colWidths=[available_width/len(summary_table_data[0])]*len(summary_table_data[0]))
+        summary_table = Table(summary_table_data)
         
-        # Add style with matching font size and minimal padding
+        # Add style
         style = TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 8),  # Header font size
-            ('FONTSIZE', (0, 1), (-1, -1), 8),  # Data font size
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),  # More vertical padding
-            ('TOPPADDING', (0, 0), (-1, -1), 3),  # More vertical padding
-            ('LEFTPADDING', (0, 0), (-1, -1), 1),  # Minimal horizontal spacing
-            ('RIGHTPADDING', (0, 0), (-1, -1), 1),  # Minimal horizontal spacing
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 0.25, colors.black)  # Thin grid lines
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ])
         
         # Add zebra striping for readability
@@ -430,24 +421,17 @@ def generate_org_distribution_pdf(data):
         
         # Create the usage table
         if len(usage_table_data) > 1:
-            # Create usage table with explicit width set to 100% of available space
-            available_width = 540  # Letter page width (612) minus minimum margins
-            usage_table = Table(usage_table_data, colWidths=[available_width/len(usage_table_data[0])]*len(usage_table_data[0]))
+            usage_table = Table(usage_table_data)
             
-            # Add style with matching font size and minimal padding
+            # Add style
             usage_style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.lightgreen),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.darkblue),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 8),  # Header font size
-                ('FONTSIZE', (0, 1), (-1, -1), 8),  # Data font size
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),  # More vertical padding
-                ('TOPPADDING', (0, 0), (-1, -1), 3),  # More vertical padding
-                ('LEFTPADDING', (0, 0), (-1, -1), 1),  # Minimal horizontal spacing
-                ('RIGHTPADDING', (0, 0), (-1, -1), 1),  # Minimal horizontal spacing
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 0.25, colors.black)  # Thin grid lines
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ])
             
             # Add zebra striping for readability
@@ -813,48 +797,24 @@ if login():
                     help="Download a comprehensive PDF report of organization distribution and usage statistics"
                 )
             
-            # Calculate percentage of accepted invitations if that column exists
+            # Calculate percentage of accepted invitations
             usage_column = None
+            # Find the 'Accepted site invitation' column with any casing/formatting
             for col in st.session_state.data.columns:
                 if 'accepted' in col.lower() and 'invitation' in col.lower():
                     usage_column = col
                     break
             
             if usage_column:
-                st.write("### User Activation")
+                accepted_count = st.session_state.data[usage_column].value_counts().get('Yes', 0)
+                total_count = len(st.session_state.data)
+                acceptance_rate = (accepted_count / total_count) * 100 if total_count > 0 else 0
+                st.write(f"### User Activation Rate: {acceptance_rate:.2f}%")
                 
-                # Count values
-                usage_counts = st.session_state.data[usage_column].value_counts()
-                
-                # If we have 'Yes' and 'No' values
-                if 'Yes' in usage_counts and 'No' in usage_counts:
-                    yes_count = usage_counts['Yes']
-                    no_count = usage_counts['No']
-                    total = yes_count + no_count
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.metric("Active Users", f"{yes_count} ({(yes_count/total*100):.1f}%)")
-                    
-                    with col2:
-                        st.metric("Inactive Users", f"{no_count} ({(no_count/total*100):.1f}%)")
-else:
-    # User not authenticated, display login message and form
-    st.title("CSV Data Explorer")
-    st.write("Please log in to access the application.")
-    st.write("Default credentials: admin/admin")
-    
-    # Force display of login form in main area as well (in case sidebar is collapsed)
-    with st.form("login_form_main"):
-        username = st.text_input("Username", key="main_username")
-        password = st.text_input("Password", type="password", key="main_password")
-        submit = st.form_submit_button("Login")
-        
-        if submit:
-            if verify_user(username, password):
-                st.session_state.authenticated = True
-                st.session_state.username = username
-                st.rerun()
-            else:
-                st.error("Invalid username or password")
+                # Show usage breakdown (Yes/No/None)
+                st.write("### Has Used Breakdown")
+                usage_counts = st.session_state.data[usage_column].value_counts().reset_index()
+                usage_counts.columns = ['Status', 'Count']
+                st.dataframe(usage_counts)
+    else:
+        st.info("Upload a CSV file to begin exploring the data. If you've previously uploaded data, it will be automatically loaded.")
