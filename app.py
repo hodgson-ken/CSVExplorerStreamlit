@@ -169,15 +169,23 @@ def generate_pdf(data, org_name="All"):
     elements.append(timestamp)
     elements.append(Paragraph("<br/>", styles["Normal"]))  # Add some space
     
+    # Make a copy and sort by Description
+    pdf_data = data.copy()
+    pdf_data = pdf_data.sort_values(by=['Description'])
+    
+    # Rename 'Accepted site invitation' to 'Has Used' if it exists
+    if 'Accepted site invitation' in pdf_data.columns:
+        pdf_data = pdf_data.rename(columns={'Accepted site invitation': 'Has Used'})
+    
     # Prepare data for the table
-    cols_to_display = ['Org', 'First name', 'Last name', 'Email', 'Description', 'Accepted site invitation']
-    existing_cols = [col for col in cols_to_display if col in data.columns]
+    cols_to_display = ['Org', 'First name', 'Last name', 'Email', 'Description', 'Has Used']
+    existing_cols = [col for col in cols_to_display if col in pdf_data.columns]
     
     # Create table data with header
     table_data = [existing_cols]  # Header row
     
     # Add rows
-    for _, row in data.iterrows():
+    for _, row in pdf_data.iterrows():
         table_row = [str(row[col]) if not pd.isna(row[col]) else "" for col in existing_cols]
         table_data.append(table_row)
     
@@ -407,14 +415,18 @@ def display_data(data, selected_org):
     # Get count of records
     record_count = len(display_df)
     
-    # Sort data by Org and Description
-    display_df = display_df.sort_values(by=['Org', 'Description'])
+    # Sort data by Description for consistency with PDF
+    display_df = display_df.sort_values(by=['Description'])
     
     # Display record count
     st.write(f"**Showing {record_count} records**")
     
+    # Rename 'Accepted site invitation' to 'Has Used' if it exists
+    if 'Accepted site invitation' in display_df.columns:
+        display_df = display_df.rename(columns={'Accepted site invitation': 'Has Used'})
+    
     # Select relevant columns similar to SQL query
-    cols_to_display = ['Org', 'First name', 'Last name', 'Email', 'Description', 'Accepted site invitation']
+    cols_to_display = ['Org', 'First name', 'Last name', 'Email', 'Description', 'Has Used']
     # Filter to only include columns that actually exist in the data
     existing_cols = [col for col in cols_to_display if col in display_df.columns]
     
@@ -504,6 +516,12 @@ if login():
                 accepted_count = st.session_state.data['Accepted site invitation'].value_counts().get('Yes', 0)
                 total_count = len(st.session_state.data)
                 acceptance_rate = (accepted_count / total_count) * 100 if total_count > 0 else 0
-                st.write(f"### Invitation Acceptance Rate: {acceptance_rate:.2f}%")
+                st.write(f"### User Activation Rate: {acceptance_rate:.2f}%")
+                
+                # Show usage breakdown (Yes/No/None)
+                st.write("### Has Used Breakdown")
+                usage_counts = st.session_state.data['Accepted site invitation'].value_counts().reset_index()
+                usage_counts.columns = ['Status', 'Count']
+                st.dataframe(usage_counts)
     else:
         st.info("Upload a CSV file to begin exploring the data. If you've previously uploaded data, it will be automatically loaded.")
