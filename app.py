@@ -220,7 +220,6 @@ def save_to_database(data):
         with engine.connect() as connection:
             connection.execute(text("DELETE FROM users_data"))
             connection.commit()
-            st.info("Cleared existing data from table")
         
         # Create a copy of the data with lowercase column names to avoid SQL case issues
         df_to_save = data.copy()
@@ -241,30 +240,22 @@ def save_to_database(data):
         for col in required_columns:
             if col not in df_to_save.columns:
                 df_to_save[col] = None
-                
-        st.info(f"Prepared DataFrame for database save. Shape: {df_to_save.shape}")
         
         # Try the simpler method first
         try:
-            st.info("Attempting to save with pandas to_sql...")
             df_to_save.to_sql('users_data', engine, if_exists='append', index=False, 
                              method='multi', chunksize=50)
-            st.info("Data saved with pandas to_sql successfully")
             return True
         except Exception as sql_err:
             # If the first method fails, try a more direct approach with explicit SQL
-            st.warning(f"Primary SQL insert failed: {sql_err}. Trying alternative method...")
-            
             # Get the column names from the table
             with engine.connect() as connection:
                 col_query = text("SELECT column_name FROM information_schema.columns WHERE table_name = 'users_data' AND column_name != 'id' AND column_name != 'upload_date'")
                 result = connection.execute(col_query).fetchall()
                 db_columns = [row[0] for row in result]
-                st.info(f"Database columns: {db_columns}")
             
             # Filter dataframe to only include columns that exist in the database
             df_cols = [col for col in df_to_save.columns if col in db_columns]
-            st.info(f"Using columns: {df_cols}")
             
             if not df_cols:
                 st.error("No matching columns found between DataFrame and database schema")
@@ -298,22 +289,17 @@ def save_to_database(data):
                         # Commit every 50 rows to avoid long transactions
                         if inserted_rows % 50 == 0:
                             connection.commit()
-                            st.info(f"Inserted {inserted_rows} rows so far...")
                     
-                    except Exception as row_err:
-                        st.warning(f"Error inserting row {idx}: {row_err}. Skipping this row.")
+                    except Exception:
                         continue
                 
                 # Final commit
                 connection.commit()
-                st.info(f"Inserted {inserted_rows} rows with manual SQL")
             
             return True
         
     except Exception as e:
         st.error(f"Error saving to database: {str(e)}")
-        import traceback
-        st.error(f"Traceback: {traceback.format_exc()}")
         return False
 
 # Function to load data from database
@@ -353,12 +339,9 @@ def load_from_database():
 
 # Function to process uploaded CSV
 def process_csv(uploaded_file):
-    try:
-        st.info("Starting CSV processing...")
-        
+    try:        
         # Read CSV into pandas DataFrame
         df = pd.read_csv(uploaded_file)
-        st.info(f"CSV read successfully. Shape: {df.shape}")
         
         # Clean column names (remove leading/trailing whitespace)
         df.columns = df.columns.str.strip()
@@ -367,7 +350,6 @@ def process_csv(uploaded_file):
         df = df.replace('', None)
         
         # Add Org column based on the logic from SQL query
-        st.info("Adding Org column based on Description field...")
         df['Org'] = df.apply(determine_org, axis=1)
         
         # Store the column names for schema validation
@@ -387,7 +369,6 @@ def process_csv(uploaded_file):
             result = connection.execute(check_query).fetchone()
             
             if not result[0]:
-                st.info("Creating users_data table...")
                 # Create a schema with dynamic columns based on the CSV
                 columns_sql = []
                 # Always include these columns
@@ -403,10 +384,8 @@ def process_csv(uploaded_file):
                 create_table_sql = f"CREATE TABLE users_data ({', '.join(columns_sql)})"
                 connection.execute(text(create_table_sql))
                 connection.commit()
-                st.info("Table created successfully.")
         
         # Save to database
-        st.info("Saving data to database...")
         save_result = save_to_database(df)
         if save_result:
             st.success("Data saved to database successfully!")
@@ -414,8 +393,6 @@ def process_csv(uploaded_file):
         return True
     except Exception as e:
         st.error(f"Error processing CSV file: {str(e)}")
-        import traceback
-        st.error(f"Traceback: {traceback.format_exc()}")
         return False
 
 # Function to display the filtered data
