@@ -3,11 +3,11 @@ import pandas as pd
 import re
 import io
 import os
+import hashlib
 from datetime import datetime
 import sqlalchemy
 from sqlalchemy import create_engine, text, Column, Integer, String, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib import colors
@@ -36,6 +36,94 @@ if 'upload_timestamp' not in st.session_state:
     st.session_state.upload_timestamp = None
 if 'db_data_loaded' not in st.session_state:
     st.session_state.db_data_loaded = False
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+if 'username' not in st.session_state:
+    st.session_state.username = None
+    
+# Authentication functions
+def create_admin_user():
+    """Create admin user in database if it doesn't exist"""
+    try:
+        with engine.connect() as connection:
+            # Check if users table exists
+            check_query = text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')")
+            result = connection.execute(check_query).fetchone()
+            
+            if not result[0]:
+                # Create users table
+                create_table_query = text("""
+                CREATE TABLE users (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    is_admin BOOLEAN DEFAULT FALSE
+                )
+                """)
+                connection.execute(create_table_query)
+                connection.commit()
+                
+                # Add admin user (default password: admin)
+                admin_pass = hashlib.sha256("admin".encode()).hexdigest()
+                insert_query = text("""
+                INSERT INTO users (username, password, is_admin) 
+                VALUES ('admin', :password, TRUE)
+                ON CONFLICT (username) DO NOTHING
+                """)
+                connection.execute(insert_query, {"password": admin_pass})
+                connection.commit()
+    except Exception as e:
+        st.error(f"Error setting up authentication: {str(e)}")
+
+def verify_user(username, password):
+    """Verify user credentials"""
+    try:
+        with engine.connect() as connection:
+            # Hash the password
+            hashed_password = hashlib.sha256(password.encode()).hexdigest()
+            
+            # Query the user
+            query = text("""
+            SELECT id, username, is_admin FROM users 
+            WHERE username = :username AND password = :password
+            """)
+            result = connection.execute(query, {"username": username, "password": hashed_password}).fetchone()
+            
+            if result:
+                return True, result[0], result[1], result[2]
+            return False, None, None, None
+    except Exception as e:
+        st.error(f"Authentication error: {str(e)}")
+        return False, None, None, None
+    
+def login():
+    """Handle user login"""
+    if st.session_state.authenticated:
+        return True
+    
+    st.title("CSV Data Explorer - Login")
+    
+    with st.form("login_form"):
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        submit = st.form_submit_button("Login")
+        
+        if submit:
+            success, user_id, user_name, is_admin = verify_user(username, password)
+            if success:
+                st.session_state.authenticated = True
+                st.session_state.username = user_name
+                st.session_state.is_admin = is_admin
+                st.success("Login successful!")
+                st.rerun()
+            else:
+                st.error("Invalid username or password")
+    
+    st.markdown("Default credentials: admin/admin")
+    return False
+
+# Ensure admin user exists
+create_admin_user()
 
 # Helper function to determine organization based on rules from SQL query logic
 def determine_org(row):
@@ -212,81 +300,89 @@ def display_data(data, selected_org):
     # Display the data
     st.dataframe(display_df[existing_cols])
 
-# Main application layout
-st.title("CSV Data Explorer")
-
-# Try loading data from database on startup
-if not st.session_state.db_data_loaded and st.session_state.data is None:
-    load_from_database()
-
-# File uploader
-with st.expander("Upload CSV File", expanded=True):
-    uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
-    if uploaded_file is not None:
-        if st.button("Process CSV"):
-            success = process_csv(uploaded_file)
-            if success:
-                st.success("CSV file processed successfully!")
-
-# Display upload status
-if st.session_state.upload_timestamp:
-    st.sidebar.info(f"Last upload: {st.session_state.upload_timestamp}")
-
-# Display data section
-if st.session_state.data is not None:
-    st.header("Data Explorer")
+# Main application logic
+if login():
+    # User is authenticated, show the main app
+    st.title(f"CSV Data Explorer - Welcome {st.session_state.username}")
     
-    # Get unique organizations for dropdown
-    org_options = ["All"] + sorted(st.session_state.data['Org'].unique().tolist())
+    # Show logout button in sidebar
+    if st.sidebar.button("Logout"):
+        st.session_state.authenticated = False
+        st.session_state.username = None
+        st.rerun()
     
-    # Create dropdown for organization selection
-    selected_org = st.selectbox("Select Organization:", org_options)
+    # Try loading data from database on startup
+    if not st.session_state.db_data_loaded and st.session_state.data is None:
+        load_from_database()
     
-    # Display filtered data
-    display_data(st.session_state.data, selected_org)
+    # File uploader
+    with st.expander("Upload CSV File", expanded=True):
+        uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
+        if uploaded_file is not None:
+            if st.button("Process CSV"):
+                success = process_csv(uploaded_file)
+                if success:
+                    st.success("CSV file processed successfully!")
     
-    # Create export section with buttons side by side
-    col1, col2 = st.columns(2)
+    # Display upload status
+    if st.session_state.upload_timestamp:
+        st.sidebar.info(f"Last upload: {st.session_state.upload_timestamp}")
     
-    # Filter data based on selection
-    if selected_org != "All":
-        filtered_data = st.session_state.data[st.session_state.data['Org'] == selected_org]
+    # Display data section
+    if st.session_state.data is not None:
+        st.header("Data Explorer")
+        
+        # Get unique organizations for dropdown
+        org_options = ["All"] + sorted(st.session_state.data['Org'].unique().tolist())
+        
+        # Create dropdown for organization selection
+        selected_org = st.selectbox("Select Organization:", org_options)
+        
+        # Display filtered data
+        display_data(st.session_state.data, selected_org)
+        
+        # Create export section with buttons side by side
+        col1, col2 = st.columns(2)
+        
+        # Filter data based on selection
+        if selected_org != "All":
+            filtered_data = st.session_state.data[st.session_state.data['Org'] == selected_org]
+        else:
+            filtered_data = st.session_state.data
+        
+        # Create a download button for the filtered data as CSV
+        if not filtered_data.empty:
+            with col1:
+                csv = filtered_data.to_csv(index=False)
+                st.download_button(
+                    label="Download as CSV",
+                    data=csv,
+                    file_name=f"filtered_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv"
+                )
+            
+            # Create a download button for the filtered data as PDF
+            with col2:
+                pdf_buffer = generate_pdf(filtered_data, selected_org)
+                st.download_button(
+                    label="Download as PDF",
+                    data=pdf_buffer,
+                    file_name=f"user_data_report_{selected_org}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                    mime="application/pdf"
+                )
+        
+        # Display data statistics
+        with st.expander("Data Statistics"):
+            st.write("### Organization Distribution")
+            org_counts = st.session_state.data['Org'].value_counts().reset_index()
+            org_counts.columns = ['Organization', 'Count']
+            st.dataframe(org_counts)
+            
+            # Calculate percentage of accepted invitations
+            if 'Accepted site invitation' in st.session_state.data.columns:
+                accepted_count = st.session_state.data['Accepted site invitation'].value_counts().get('Yes', 0)
+                total_count = len(st.session_state.data)
+                acceptance_rate = (accepted_count / total_count) * 100 if total_count > 0 else 0
+                st.write(f"### Invitation Acceptance Rate: {acceptance_rate:.2f}%")
     else:
-        filtered_data = st.session_state.data
-    
-    # Create a download button for the filtered data as CSV
-    if not filtered_data.empty:
-        with col1:
-            csv = filtered_data.to_csv(index=False)
-            st.download_button(
-                label="Download as CSV",
-                data=csv,
-                file_name=f"filtered_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv"
-            )
-        
-        # Create a download button for the filtered data as PDF
-        with col2:
-            pdf_buffer = generate_pdf(filtered_data, selected_org)
-            st.download_button(
-                label="Download as PDF",
-                data=pdf_buffer,
-                file_name=f"user_data_report_{selected_org}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                mime="application/pdf"
-            )
-    
-    # Display data statistics
-    with st.expander("Data Statistics"):
-        st.write("### Organization Distribution")
-        org_counts = st.session_state.data['Org'].value_counts().reset_index()
-        org_counts.columns = ['Organization', 'Count']
-        st.dataframe(org_counts)
-        
-        # Calculate percentage of accepted invitations
-        if 'Accepted site invitation' in st.session_state.data.columns:
-            accepted_count = st.session_state.data['Accepted site invitation'].value_counts().get('Yes', 0)
-            total_count = len(st.session_state.data)
-            acceptance_rate = (accepted_count / total_count) * 100 if total_count > 0 else 0
-            st.write(f"### Invitation Acceptance Rate: {acceptance_rate:.2f}%")
-else:
-    st.info("Upload a CSV file to begin exploring the data. If you've previously uploaded data, it will be automatically loaded.")
+        st.info("Upload a CSV file to begin exploring the data. If you've previously uploaded data, it will be automatically loaded.")
