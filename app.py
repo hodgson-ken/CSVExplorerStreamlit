@@ -382,12 +382,26 @@ def generate_pdf(data, org_name="All"):
 # Function to send email with PDF attachment
 def send_email(recipient_email, subject, body, pdf_buffer, filename):
     """Send email with PDF attachment"""
+    # Set up logging to file
+    log_file = "email_log.txt"
+    with open(log_file, "a") as f:
+        f.write(f"\n\n--- Email attempt: {datetime.now()} ---\n")
+        f.write(f"To: {recipient_email}\n")
+        f.write(f"Subject: {subject}\n")
+    
     try:
         # Get email credentials from environment variables
         email_host = os.environ.get('EMAIL_HOST')
         email_port = os.environ.get('EMAIL_PORT')
         email_username = os.environ.get('EMAIL_USERNAME')
         email_password = os.environ.get('EMAIL_PASSWORD')
+        
+        # Log to file
+        with open(log_file, "a") as f:
+            f.write(f"Host: {email_host}\n")
+            f.write(f"Port: {email_port}\n")
+            f.write(f"Username: {email_username}\n")
+            f.write(f"Password set: {'Yes' if email_password else 'No'}\n")
         
         # Check if credentials are available
         if not all([email_host, email_port, email_username, email_password]):
@@ -396,7 +410,10 @@ def send_email(recipient_email, subject, body, pdf_buffer, filename):
             if not email_port: missing.append("EMAIL_PORT")
             if not email_username: missing.append("EMAIL_USERNAME")
             if not email_password: missing.append("EMAIL_PASSWORD")
-            return False, f"Missing email credentials: {', '.join(missing)}"
+            error_msg = f"Missing email credentials: {', '.join(missing)}"
+            with open(log_file, "a") as f:
+                f.write(f"ERROR: {error_msg}\n")
+            return False, error_msg
         
         # Log connection details (without password)
         print(f"Attempting to connect to email server: {email_host}:{email_port} with username: {email_username}")
@@ -419,42 +436,101 @@ def send_email(recipient_email, subject, body, pdf_buffer, filename):
         # Send email with more detailed error handling
         try:
             # Create server connection
+            with open(log_file, "a") as f:
+                f.write(f"Creating SMTP connection to {email_host}:{email_port}...\n")
             server = smtplib.SMTP(email_host, int(email_port), timeout=10)
+            server.set_debuglevel(1)  # Enable debug output
+            
+            # Store debug output
+            debug_output = []
+            def custom_debugger(smtp, message):
+                debug_output.append(message)
+                with open(log_file, "a") as f:
+                    f.write(f"DEBUG: {message}\n")
+            server.debuglevel = 1
+            server._print_debug = custom_debugger
             
             # Start TLS
             try:
+                with open(log_file, "a") as f:
+                    f.write("Starting TLS...\n")
                 server.starttls()
             except Exception as tls_error:
-                return False, f"TLS error: {str(tls_error)}"
+                error_msg = f"TLS error: {str(tls_error)}"
+                with open(log_file, "a") as f:
+                    f.write(f"ERROR: {error_msg}\n")
+                return False, error_msg
             
             # Login to server
             try:
+                with open(log_file, "a") as f:
+                    f.write(f"Logging in as {email_username}...\n")
                 server.login(email_username, email_password)
             except smtplib.SMTPAuthenticationError as auth_error:
-                return False, f"Authentication failed: {str(auth_error)}"
+                error_msg = f"Authentication failed: {str(auth_error)}"
+                with open(log_file, "a") as f:
+                    f.write(f"ERROR: {error_msg}\n")
+                return False, error_msg
             
             # Send message
             try:
+                with open(log_file, "a") as f:
+                    f.write("Sending message...\n")
                 server.send_message(msg)
             except Exception as send_error:
-                return False, f"Error sending message: {str(send_error)}"
+                error_msg = f"Error sending message: {str(send_error)}"
+                with open(log_file, "a") as f:
+                    f.write(f"ERROR: {error_msg}\n")
+                return False, error_msg
             
             # Close connection
             try:
+                with open(log_file, "a") as f:
+                    f.write("Closing connection...\n")
                 server.quit()
-            except Exception:
-                pass  # If quit fails, we already sent the email so it's okay
+            except Exception as quit_error:
+                with open(log_file, "a") as f:
+                    f.write(f"Warning (non-fatal): Error closing connection: {str(quit_error)}\n")  
                 
+            with open(log_file, "a") as f:
+                f.write("SUCCESS: Email sent successfully.\n")
             return True, "Email sent successfully"
         except smtplib.SMTPConnectError as conn_error:
-            return False, f"Connection error: {str(conn_error)}"
+            error_msg = f"Connection error: {str(conn_error)}"
+            with open(log_file, "a") as f:
+                f.write(f"ERROR: {error_msg}\n")
+            return False, error_msg
         except TimeoutError:
-            return False, f"Connection timed out while connecting to {email_host}:{email_port}"
+            error_msg = f"Connection timed out while connecting to {email_host}:{email_port}"
+            with open(log_file, "a") as f:
+                f.write(f"ERROR: {error_msg}\n")
+            return False, error_msg
+        except socket.gaierror as dns_error:
+            error_msg = f"DNS resolution error for {email_host}: {str(dns_error)}"
+            with open(log_file, "a") as f:
+                f.write(f"ERROR: {error_msg}\n")
+            return False, error_msg
+        except ConnectionRefusedError:
+            error_msg = f"Connection refused by {email_host}:{email_port} - server may be blocking your connection"
+            with open(log_file, "a") as f:
+                f.write(f"ERROR: {error_msg}\n")
+            return False, error_msg
         except Exception as smtp_error:
-            return False, f"SMTP error: {str(smtp_error)}"
+            error_msg = f"SMTP error: {str(smtp_error)}"
+            with open(log_file, "a") as f:
+                f.write(f"ERROR: {error_msg}\n")
+                f.write(f"Error type: {type(smtp_error).__name__}\n")
+                import traceback
+                f.write(traceback.format_exc())
+            return False, error_msg
             
     except Exception as e:
-        return False, f"Error preparing email: {str(e)}"
+        error_msg = f"Error preparing email: {str(e)}"
+        with open(log_file, "a") as f:
+            f.write(f"ERROR: {error_msg}\n")
+            import traceback
+            f.write(traceback.format_exc())
+        return False, error_msg
 
 # Function to generate a PDF report of organization distribution
 def generate_org_distribution_pdf(data):
