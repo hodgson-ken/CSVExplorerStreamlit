@@ -84,8 +84,8 @@ def create_admin_user():
                 # Add admin user (default password: admin)
                 admin_pass = hashlib.sha256("admin".encode()).hexdigest()
                 insert_query = text("""
-                INSERT INTO users (username, password, is_admin) 
-                VALUES ('admin', :password, TRUE)
+                INSERT INTO users (username, password, is_admin, email) 
+                VALUES ('admin', :password, TRUE, 'admin@example.com')
                 ON CONFLICT (username) DO NOTHING
                 """)
                 connection.execute(insert_query, {"password": admin_pass})
@@ -108,11 +108,32 @@ def verify_user(username, password):
             result = connection.execute(query, {"username": username, "password": hashed_password}).fetchone()
             
             if result:
-                return True, result[0], result[1], result[2], result[3]
+                # Check if email field exists (in case it was just added)
+                if len(result) >= 4:
+                    return True, result[0], result[1], result[2], result[3]
+                else:
+                    return True, result[0], result[1], result[2], None
             return False, None, None, None, None
     except Exception as e:
-        st.error(f"Authentication error: {str(e)}")
-        return False, None, None, None, None
+        # If there's a column error, try without email
+        if "column \"email\" does not exist" in str(e):
+            try:
+                with engine.connect() as connection:
+                    query = text("""
+                    SELECT id, username, is_admin FROM users 
+                    WHERE username = :username AND password = :password
+                    """)
+                    result = connection.execute(query, {"username": username, "password": hashed_password}).fetchone()
+                    
+                    if result:
+                        return True, result[0], result[1], result[2], None
+                    return False, None, None, None, None
+            except Exception as inner_e:
+                st.error(f"Authentication error: {str(inner_e)}")
+                return False, None, None, None, None
+        else:
+            st.error(f"Authentication error: {str(e)}")
+            return False, None, None, None, None
     
 def change_password(username, current_password, new_password):
     """Change a user's password"""
