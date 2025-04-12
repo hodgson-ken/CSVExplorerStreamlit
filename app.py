@@ -255,12 +255,8 @@ def generate_pdf(data, org_name="All"):
             
             # Create the table
             if len(table_data) > 1:  # Only create table if there are rows
-                # Calculate optimal column widths to fit on a page
-                available_width = 500  # approximate available width on letter page with margins
-                col_widths = [70, 60, 60, 100, 120, 60]  # Adjust column widths based on content
-                
-                # Create table with specific column widths
-                table = Table(table_data, colWidths=col_widths)
+                # Create table using full page width
+                table = Table(table_data)
                 
                 # Add style with extremely compact row heights
                 style = TableStyle([
@@ -303,12 +299,8 @@ def generate_pdf(data, org_name="All"):
         
         # Create the table
         if len(table_data) > 1:  # Only create table if there are rows
-            # Calculate optimal column widths to fit on a page
-            available_width = 500  # approximate available width on letter page with margins
-            col_widths = [70, 60, 60, 100, 120, 60]  # Adjust column widths based on content
-            
-            # Create table with specific column widths
-            table = Table(table_data, colWidths=col_widths)
+            # Create table using full page width
+            table = Table(table_data)
             
             # Add style with extremely compact row heights
             style = TableStyle([
