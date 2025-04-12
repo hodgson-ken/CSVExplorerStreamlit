@@ -258,18 +258,18 @@ def generate_pdf(data, org_name="All"):
                 # Create table using full page width
                 table = Table(table_data)
                 
-                # Add style with extremely compact row heights
+                # Create table with full width and slightly larger fonts
                 style = TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 7),  # Smaller header font
-                    ('FONTSIZE', (0, 1), (-1, -1), 6),  # Smaller data font
+                    ('FONTSIZE', (0, 0), (-1, 0), 8),  # Header font size
+                    ('FONTSIZE', (0, 1), (-1, -1), 8),  # Data font size
                     ('BOTTOMPADDING', (0, 0), (-1, -1), 1),  # Minimal bottom padding
                     ('TOPPADDING', (0, 0), (-1, -1), 1),  # Minimal top padding
-                    ('LEFTPADDING', (0, 0), (-1, -1), 4),  # Keep some horizontal spacing
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),  # Keep some horizontal spacing
+                    ('LEFTPADDING', (0, 0), (-1, -1), 2),  # Minimal horizontal spacing
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 2),  # Minimal horizontal spacing
                     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                     ('GRID', (0, 0), (-1, -1), 0.25, colors.black),  # Very thin grid lines
                     ('LEADING', (0, 0), (-1, -1), 6),  # Very tight line spacing
@@ -302,18 +302,18 @@ def generate_pdf(data, org_name="All"):
             # Create table using full page width
             table = Table(table_data)
             
-            # Add style with extremely compact row heights
+            # Create table with full width and slightly larger fonts
             style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 7),  # Smaller header font
-                ('FONTSIZE', (0, 1), (-1, -1), 6),  # Smaller data font
+                ('FONTSIZE', (0, 0), (-1, 0), 8),  # Header font size
+                ('FONTSIZE', (0, 1), (-1, -1), 8),  # Data font size
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 1),  # Minimal bottom padding
                 ('TOPPADDING', (0, 0), (-1, -1), 1),  # Minimal top padding
-                ('LEFTPADDING', (0, 0), (-1, -1), 4),  # Keep some horizontal spacing
-                ('RIGHTPADDING', (0, 0), (-1, -1), 4),  # Keep some horizontal spacing
+                ('LEFTPADDING', (0, 0), (-1, -1), 2),  # Minimal horizontal spacing
+                ('RIGHTPADDING', (0, 0), (-1, -1), 2),  # Minimal horizontal spacing
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                 ('GRID', (0, 0), (-1, -1), 0.25, colors.black),  # Very thin grid lines
                 ('LEADING', (0, 0), (-1, -1), 6),  # Very tight line spacing
