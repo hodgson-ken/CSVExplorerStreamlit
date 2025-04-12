@@ -255,17 +255,28 @@ def generate_pdf(data, org_name="All"):
             
             # Create the table
             if len(table_data) > 1:  # Only create table if there are rows
-                table = Table(table_data)
+                # Calculate optimal column widths to fit on a page
+                available_width = 500  # approximate available width on letter page with margins
+                col_widths = [70, 60, 60, 100, 120, 60]  # Adjust column widths based on content
                 
-                # Add style
+                # Create table with specific column widths
+                table = Table(table_data, colWidths=col_widths)
+                
+                # Add style with smaller font and reduced padding
                 style = TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('FONTSIZE', (0, 0), (-1, 0), 8),  # Reduced header font size
+                    ('FONTSIZE', (0, 1), (-1, -1), 7),  # Reduced data font size
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
+                    ('TOPPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
+                    ('LEFTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
                     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.black),  # Thinner grid lines
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')  # Vertical alignment
                 ])
                 
                 # Add zebra striping for readability
@@ -291,17 +302,28 @@ def generate_pdf(data, org_name="All"):
         
         # Create the table
         if len(table_data) > 1:  # Only create table if there are rows
-            table = Table(table_data)
+            # Calculate optimal column widths to fit on a page
+            available_width = 500  # approximate available width on letter page with margins
+            col_widths = [70, 60, 60, 100, 120, 60]  # Adjust column widths based on content
             
-            # Add style
+            # Create table with specific column widths
+            table = Table(table_data, colWidths=col_widths)
+            
+            # Add style with smaller font and reduced padding
             style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('FONTSIZE', (0, 0), (-1, 0), 8),  # Reduced header font size
+                ('FONTSIZE', (0, 1), (-1, -1), 7),  # Reduced data font size
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
+                ('TOPPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
+                ('LEFTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
+                ('RIGHTPADDING', (0, 0), (-1, -1), 3),  # Reduced padding
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),  # Thinner grid lines
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')  # Vertical alignment
             ])
             
             # Add zebra striping for readability
