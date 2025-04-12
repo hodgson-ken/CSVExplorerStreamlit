@@ -439,34 +439,55 @@ def send_email(recipient_email, subject, body, pdf_buffer, filename):
             # Create server connection
             with open(log_file, "a") as f:
                 f.write(f"Creating SMTP connection to {email_host}:{email_port}...\n")
-            server = smtplib.SMTP(email_host, int(email_port), timeout=10)
-            server.set_debuglevel(1)  # Enable debug output
             
-            # Store debug output
-            debug_output = []
-            def custom_debugger(smtp, message):
-                debug_output.append(message)
+            # Validate email host and port
+            if not email_host or not email_port:
+                error_msg = "Email host or port is missing"
                 with open(log_file, "a") as f:
-                    f.write(f"DEBUG: {message}\n")
-            server.debuglevel = 1
-            server._print_debug = custom_debugger
-            
-            # Start TLS
+                    f.write(f"ERROR: {error_msg}\n")
+                return False, error_msg
+                
+            # Use SMTP_SSL for port 465, regular SMTP with STARTTLS for other ports
             try:
+                if email_port == '465':
+                    with open(log_file, "a") as f:
+                        f.write("Using SMTP_SSL for direct SSL connection (port 465)...\n")
+                    server = smtplib.SMTP_SSL(host=email_host, port=int(email_port), timeout=10)
+                else:
+                    server = smtplib.SMTP(host=email_host, port=int(email_port), timeout=10)
+                    # Start TLS for non-SSL connections
+                    try:
+                        with open(log_file, "a") as f:
+                            f.write("Starting TLS...\n")
+                        server.starttls()
+                    except Exception as tls_error:
+                        error_msg = f"TLS error: {str(tls_error)}"
+                        with open(log_file, "a") as f:
+                            f.write(f"ERROR: {error_msg}\n")
+                        return False, error_msg
+                
+                # Enable debug output
+                server.set_debuglevel(1)
                 with open(log_file, "a") as f:
-                    f.write("Starting TLS...\n")
-                server.starttls()
-            except Exception as tls_error:
-                error_msg = f"TLS error: {str(tls_error)}"
+                    f.write("Debug mode enabled\n")
+            except Exception as conn_error:
+                error_msg = f"Error establishing connection: {str(conn_error)}"
                 with open(log_file, "a") as f:
                     f.write(f"ERROR: {error_msg}\n")
                 return False, error_msg
             
             # Login to server
             try:
+                # Validate credentials
+                if not email_username or not email_password:
+                    error_msg = "Email username or password is missing"
+                    with open(log_file, "a") as f:
+                        f.write(f"ERROR: {error_msg}\n")
+                    return False, error_msg
+                
                 with open(log_file, "a") as f:
                     f.write(f"Logging in as {email_username}...\n")
-                server.login(email_username, email_password)
+                server.login(user=email_username, password=email_password)
             except smtplib.SMTPAuthenticationError as auth_error:
                 error_msg = f"Authentication failed: {str(auth_error)}"
                 with open(log_file, "a") as f:
