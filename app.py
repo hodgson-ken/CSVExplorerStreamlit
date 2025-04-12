@@ -258,6 +258,132 @@ def generate_pdf(data, org_name="All"):
     buffer.seek(0)
     return buffer
 
+# Function to generate a PDF report of organization distribution
+def generate_org_distribution_pdf(data):
+    buffer = io.BytesIO()
+    
+    # Create the PDF document
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
+    
+    # Add a title
+    styles = getSampleStyleSheet()
+    title_text = "Organization Distribution Report"
+    title = Paragraph(title_text, styles["Heading1"])
+    elements.append(title)
+    
+    # Add timestamp
+    timestamp = Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles["Normal"])
+    elements.append(timestamp)
+    elements.append(Paragraph("<br/>", styles["Normal"]))  # Add some space
+    
+    # Get organization distribution
+    org_counts = data['Org'].value_counts().reset_index()
+    org_counts.columns = ['Organization', 'Count']
+    org_counts = org_counts.sort_values(by='Count', ascending=False)  # Sort by count
+    
+    # Create table data with header
+    table_data = [['Organization', 'Count', 'Percentage']]  # Header row
+    
+    # Calculate total for percentage
+    total_users = len(data)
+    
+    # Add rows
+    for _, row in org_counts.iterrows():
+        org = row['Organization']
+        count = row['Count']
+        percentage = (count / total_users) * 100 if total_users > 0 else 0
+        
+        table_data.append([
+            str(org), 
+            str(count), 
+            f"{percentage:.2f}%"
+        ])
+    
+    # Create the table
+    if len(table_data) > 1:  # Only create table if there are rows
+        table = Table(table_data)
+        
+        # Add style
+        style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ])
+        
+        # Add zebra striping for readability
+        for i in range(1, len(table_data)):
+            if i % 2 == 0:
+                style.add('BACKGROUND', (0, i), (-1, i), colors.white)
+        
+        table.setStyle(style)
+        elements.append(table)
+    
+    # Add usage statistics if available
+    usage_column = None
+    for col in data.columns:
+        if 'accepted' in col.lower() and 'invitation' in col.lower():
+            usage_column = col
+            break
+    
+    if usage_column:
+        elements.append(Paragraph("<br/><br/>", styles["Normal"]))  # Add more space
+        elements.append(Paragraph("User Activation Statistics", styles["Heading2"]))
+        
+        usage_counts = data[usage_column].value_counts().reset_index()
+        usage_counts.columns = ['Status', 'Count']
+        
+        # Create table data with header for usage stats
+        usage_table_data = [['Status', 'Count', 'Percentage']]  # Header row
+        
+        # Add rows for usage stats
+        for _, row in usage_counts.iterrows():
+            status = row['Status'] if not pd.isna(row['Status']) else "Not Specified"
+            count = row['Count']
+            percentage = (count / total_users) * 100 if total_users > 0 else 0
+            
+            usage_table_data.append([
+                str(status), 
+                str(count), 
+                f"{percentage:.2f}%"
+            ])
+        
+        # Create the usage table
+        if len(usage_table_data) > 1:
+            usage_table = Table(usage_table_data)
+            
+            # Add style
+            usage_style = TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgreen),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.darkblue),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ])
+            
+            # Add zebra striping for readability
+            for i in range(1, len(usage_table_data)):
+                if i % 2 == 0:
+                    usage_style.add('BACKGROUND', (0, i), (-1, i), colors.white)
+            
+            usage_table.setStyle(usage_style)
+            elements.append(usage_table)
+    
+    # Add total count
+    elements.append(Paragraph(f"<br/>Total Organizations: {len(org_counts)}", styles["Normal"]))
+    elements.append(Paragraph(f"Total Users: {total_users}", styles["Normal"]))
+    
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
 # Function to save data to database
 def save_to_database(data):
     try:
@@ -583,10 +709,25 @@ if login():
         
         # Display data statistics
         with st.expander("Data Statistics"):
-            st.write("### Organization Distribution")
-            org_counts = st.session_state.data['Org'].value_counts().reset_index()
-            org_counts.columns = ['Organization', 'Count']
-            st.dataframe(org_counts)
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                st.write("### Organization Distribution")
+                org_counts = st.session_state.data['Org'].value_counts().reset_index()
+                org_counts.columns = ['Organization', 'Count']
+                st.dataframe(org_counts)
+            
+            with col2:
+                st.write("### Export")
+                # Generate and offer PDF download
+                pdf_buffer = generate_org_distribution_pdf(st.session_state.data)
+                st.download_button(
+                    label="Download Statistics PDF",
+                    data=pdf_buffer,
+                    file_name=f"organization_statistics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                    mime="application/pdf",
+                    help="Download a comprehensive PDF report of organization distribution and usage statistics"
+                )
             
             # Calculate percentage of accepted invitations
             usage_column = None
