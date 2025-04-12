@@ -4,6 +4,7 @@ import io
 import hashlib
 import warnings
 import smtplib
+import socket
 import tempfile
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
