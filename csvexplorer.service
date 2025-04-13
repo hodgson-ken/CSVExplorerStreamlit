@@ -1,0 +1,17 @@
+[Unit]
+Description=CSV Explorer Streamlit App
+After=network.target postgresql.service
+
+[Service]
+# Replace USERNAME with your Raspberry Pi username (e.g., pi)
+User=USERNAME
+# Replace /home/USERNAME/csvexplorer with your actual installation path
+WorkingDirectory=/home/USERNAME/csvexplorer
+Environment="PATH=/home/USERNAME/csvexplorer/venv/bin"
+EnvironmentFile=/home/USERNAME/csvexplorer/.env
+ExecStart=/home/USERNAME/csvexplorer/venv/bin/streamlit run app.py --server.port 5000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
