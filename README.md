@@ -11,6 +11,7 @@ A Streamlit-powered application for uploading, processing, and visualizing CSV d
 - **PDF Export**: Generate formatted PDF reports with proper pagination
 - **Email Functionality**: Send reports to specified contacts
 - **Responsive UI**: Built with Streamlit for a clean, intuitive interface
+- **Easy Deployment**: Ready for deployment on Raspberry Pi or cloud environments
 
 ## Quick Start
 
