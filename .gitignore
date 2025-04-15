@@ -1,0 +1,55 @@
+# Environment variables
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+.venv/
+
+# Log files
+*.log
+email_log.txt
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Streamlit
+.streamlit/secrets.toml
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# IDE related files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Misc
+CSVExplorer.zip
+.replit
+.breakpoints
+.upm/
