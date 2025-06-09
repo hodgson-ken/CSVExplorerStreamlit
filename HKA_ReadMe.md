@@ -8,19 +8,34 @@
 - **Forks**: 0
 - **Topics**: None
 - **Created**: 2025-04-15
-- **Last Updated**: 2025-04-15
+- **Last Updated**: 2025-06-05
 
 ## Documentation
-This documentation was automatically generated on 2025-06-04 22:26:46
+This documentation was automatically generated on 2025-06-08 18:38:58
 
-## Repository Structure
-[Repository structure will be analyzed and documented here]
+Error analyzing repository with Claude
 
-## Dependencies
-[Dependencies will be analyzed and documented here]
+## Branches
+- main
+
+### Code Statistics
+- Python: 95.5%
+- Shell: 4.4%
+- Nix: 0.2%
 
 ## Setup Instructions
-[Setup instructions will be documented here]
+1. Clone the repository:
+```bash
+git clone https://github.com/hodgson-ken/CSVExplorerStreamlit.git
+cd CSVExplorerStreamlit
+```
 
-## Usage
-[Usage instructions will be documented here]
+## Contributing
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+[Add license information here]
